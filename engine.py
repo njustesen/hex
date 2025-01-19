@@ -1,7 +1,7 @@
 import pygame
 import colors
 import sys
-from map import Map
+from map import HexGridMap, TileGridMap, IsometricTileGridMap
 
 
 class GameEngine:
@@ -15,8 +15,9 @@ class GameEngine:
             pygame.display.toggle_fullscreen()
         self.done = False
         pygame.mouse.set_visible(False)
-        size = 50
-        self.map = Map(10, 10, hex_radius=100, hex_vertical_scale=1)
+        self.map = HexGridMap(30, 30, hex_radius=100, hex_vertical_scale=0.5)
+        #self.map = TileGridMap(30, 30, tile_width=80, tile_height=80)
+        #self.map = IsometricTileGridMap(20, 20, tile_width=80, tile_height=50)
         self.hover_hex = None
 
     def run(self, fps):
@@ -35,7 +36,7 @@ class GameEngine:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-        self.hover_hex = self.map.get_nearest_hex(mouse)
+        self.hover_hex = self.map.get_nearest_tile(mouse)
 
     def draw(self, events, mouse):
         self.screen.fill(colors.BLACK)
