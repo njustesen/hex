@@ -33,16 +33,7 @@ class GridMap:
         surface.blit(rendered_text, position)
 
     def get_nearest_tile(self, pos):
-        min_distance = sys.maxsize
-        nearest_tile = None
-        for y in range(self.height):
-            for x in range(self.width):
-                tile = self.tiles[y][x]
-                distance = math.dist(tile.pos, pos)
-                if distance < min_distance:
-                    min_distance = distance
-                    nearest_tile = tile
-        return nearest_tile
+        raise NotImplementedError()
 
 
 class HexGridMap(GridMap):
@@ -78,6 +69,21 @@ class HexGridMap(GridMap):
                 row.append(Hexagon(pos, x, y, self.hex_radius, self.hex_vertical_scale, self.hex_height, self.hex_width, self.hex_orientation))
             self.tiles.append(row)
 
+    def get_nearest_tile(self, pos):
+        upscale = 1 / self.hex_vertical_scale
+        scaled_pos = (pos[0], pos[1] * upscale)
+        min_distance = sys.maxsize
+        nearest_tile = None
+        for y in range(self.height):
+            for x in range(self.width):
+                tile = self.tiles[y][x]
+                scaled_tile_pos = (tile.pos[0], tile.pos[1] * upscale)
+                distance = math.dist(scaled_tile_pos, scaled_pos)
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_tile = tile
+        return nearest_tile
+
 
 class TileGridMap(GridMap):
 
@@ -97,6 +103,11 @@ class TileGridMap(GridMap):
                 row.append(SquareTile(pos, x, y, self.tile_width, self.tile_height))
             self.tiles.append(row)
 
+    def get_nearest_tile(self, pos):
+        x_idx = int((pos[0] + self.tile_width / 2) / self.tile_width)
+        y_idx = int((pos[1] + self.tile_height / 2) / self.tile_height)
+        return self.tiles[y_idx][x_idx]
+
 
 class IsometricTileGridMap(GridMap):
 
@@ -111,7 +122,22 @@ class IsometricTileGridMap(GridMap):
             row = []
             for x in range(self.width):
                 x_offset = ((self.width * self.tile_width) / 2) + (x - y) * (self.tile_width / 2)
-                y_offset = (x + y) * (self.tile_height / 2)
+                y_offset = (self.tile_height / 2) + (x + y) * (self.tile_height / 2)
                 pos = (x_offset, y_offset)
                 row.append(IsometricTile(pos, x, y, self.tile_width, self.tile_height))
             self.tiles.append(row)
+
+    def get_nearest_tile(self, pos):
+        upscale = self.tile_width / self.tile_height
+        scaled_pos = (pos[0], pos[1] * upscale)
+        min_distance = sys.maxsize
+        nearest_tile = None
+        for y in range(self.height):
+            for x in range(self.width):
+                tile = self.tiles[y][x]
+                scaled_tile_pos = (tile.pos[0], tile.pos[1] * upscale)
+                distance = math.dist(scaled_tile_pos, scaled_pos)
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_tile = tile
+        return nearest_tile
