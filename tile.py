@@ -43,11 +43,6 @@ class IsometricHexagon(Tile):
         self.orientation = orientation
         self.points = self._compute_points()
 
-    def iso_transform(self, x, y):
-        iso_x = x - y
-        iso_y = (x + y) / 2
-        return iso_x, iso_y
-
     def _compute_points(self):
         cx, cy = self.pos
         if self.orientation == "flat":
@@ -60,7 +55,9 @@ class IsometricHexagon(Tile):
             x = cx + self.radius * math.cos(math.radians(angle))
             y = cy + (self.radius * self.vertical_scale) * math.sin(math.radians(angle))
             iso_x = x - y
-            iso_y = (x + y) / 2
+            iso_y = (x + y) / 3
+            print(x, iso_x)
+            print(y, iso_y)
             points.append((iso_x, iso_y))
 
         return points

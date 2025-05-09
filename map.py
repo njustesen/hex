@@ -154,19 +154,19 @@ class IsometricHexGridMap(GridMap):
 
     @property
     def width(self):
-        return self._horizontal_spacing * (self.cols+1)
+        return self.hex_width * (self.cols * 1.5)
 
     @property
     def height(self):
-        return self._vertical_spacing * (self.rows+1.5)
+        return self.hex_width * (self.rows + 2)
 
     @property
     def x1(self):
-        return -self._horizontal_spacing
+        return -self.hex_width*self.rows
 
     @property
     def y1(self):
-        return -self._vertical_spacing
+        return -self.hex_height
 
     def generate(self):
         for y in range(self.rows):
