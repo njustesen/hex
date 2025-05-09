@@ -11,12 +11,12 @@ if __name__ == '__main__':
     pygame.mouse.set_visible(False)
 
     display_info = pygame.display.Info()
-    screen_width = display_info.current_w
-    screen_height = display_info.current_h
+    screen_width = display_info.current_w / 2
+    screen_height = display_info.current_h / 2
 
     screen = pygame.display.set_mode((screen_width, screen_height))
     num_players = 1
 
-    engine = GameEngine(screen_width, screen_height, fullscreen=True)
+    engine = GameEngine(screen_width, screen_height, fullscreen=False)
 
     engine.run(fps=60)

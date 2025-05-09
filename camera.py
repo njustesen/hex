@@ -68,37 +68,37 @@ class Camera:
     def center(self):
         return self._center[0] + self.shake_offset_x, self._center[1] + self.shake_offset_y
 
-    def set_center(self, position, bounds=None):
+    def set_center(self, position, map=None):
         _center = position
         if bounds:
-            self._adjust(bounds)
+            self._adjust(map)
 
     def norm(self, pos):
         return (pos[0] - self.x1) / self.width, (pos[1] - self.y1) / self.height
 
-    def change(self, center, width, height, bounds=None):
+    def change(self, center, width, height, map=None):
         self._center = center
         self.width = width
         self.height = height
-        if bounds:
-            self._adjust(bounds)
+        if map:
+            self._adjust(map)
 
-    def _adjust(self, bounds):
-        return
-        if self.width > bounds.width:
-            self._center = (bounds.x + bounds.width / 2, self._center[1])
-        if self.height > bounds.height:
-            self._center = (self._center[0], bounds.y + bounds.height / 2)
-        width = self.width
-        height = self.height
-        if self._x1 < bounds.x:
-            self._center = (bounds.x + width / 2, self._center[1])
-        if self._x2 > bounds.x + width:
-            self._center = ((bounds.x + width) - width / 2, self._center[1])
-        if self._y1 < bounds.y:
-            self._center = (self._center[0], bounds.y + height / 2)
-        if self._y2 > bounds.y + height:
-            self._center = (self._center[0], (bounds.y + height) - height / 2)
+    def _adjust(self, map):
+        #return
+        if self.width > map.width:
+            self._center = (map.center[0], self._center[1])
+            self.width = map.width
+        if self.height > map.height:
+            self._center = (self._center[0], map.center[1])
+            self.height = map.height
+        if self._x1 < map.x1:
+            self._center = (map.x1 + self.width / 2, self._center[1])
+        if self._x2 > map.x2:
+            self._center = (map.x2 - self.width / 2, self._center[1])
+        if self._y1 < map.y1:
+            self._center = (self._center[0], map.y1 + self.height / 2)
+        if self._y2 > map.y2:
+            self._center = (self._center[0], map.y2 - self.height / 2)
 
     def screen_shake(self, seconds):
         self.shaking_time = seconds

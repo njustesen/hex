@@ -7,7 +7,7 @@ from viewport import Viewport
 
 class GameEngine:
 
-    def __init__(self, width, height, fullscreen=False):
+    def __init__(self, width, height, fullscreen=False, move_speed=0.5, zoom_speed=0.5):
         self.width = width
         self.height = height
         self.fullscreen = fullscreen
@@ -16,7 +16,7 @@ class GameEngine:
             pygame.display.toggle_fullscreen()
         self.done = False
         pygame.mouse.set_visible(False)
-        self.map = HexGridMap(30, 30, hex_radius=100, hex_vertical_scale=0.9)
+        self.map = HexGridMap(21, 11, hex_radius=100, hex_vertical_scale=0.9)
         #self.map = TileGridMap(30, 30, tile_width=80, tile_height=120)
         #self.map = IsometricTileGridMap(20, 20, tile_width=60, tile_height=40)
         self.hover_tile = None
@@ -37,6 +37,11 @@ class GameEngine:
         self.keys_down = set()
         self.keys_pressed = set()
         self.keys_released = set()
+        self.zoom_direction = 0
+        self.direction_x = 0
+        self.direction_y = 0
+        self.move_speed = move_speed
+        self.zoom_speed = zoom_speed
 
     def run(self, fps):
         clock = pygame.time.Clock()
@@ -55,14 +60,15 @@ class GameEngine:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            # Move viewport cam
-            # Zoom
-        self.hover_tile = self.map.get_nearest_tile(mouse)
+        self.viewport.zoom_cam(self.zoom_direction * self.zoom_speed * seconds)
+        self.move_cam(seconds)
+        mouse_position = self.viewport.surface_to_world(mouse)
+        self.viewport.hover_tile = self.map.get_nearest_tile(mouse_position)
 
     def _update_keys(self, events):
         self.keys_pressed.clear()
         self.keys_released.clear()
-        zoom_direction = 0
+        self.zoom_direction = 0
         for event in events:
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -76,32 +82,25 @@ class GameEngine:
                 if event.key in self.keys_down:
                     self.keys_down.remove(event.key)
             if event.type == pygame.MOUSEWHEEL:
-                if event.y > 0:  # Scrolling up
-                    zoom_direction = 0.1
-                elif event.y < 0:  # Scrolling down
-                    zoom_direction = -0.1
-        self.viewport.zoom_cam(zoom_direction)
-        self.move_cam()
-
-    def move_cam(self):
-        direction_x = 0
-        direction_y = 0
+                self.zoom_direction = event.y
+        self.direction_x = 0
+        self.direction_y = 0
         if pygame.K_LEFT in self.keys_down or pygame.K_a in self.keys_down:
-            direction_x -= 1
+            self.direction_x -= 1
         if pygame.K_RIGHT in self.keys_down or pygame.K_d in self.keys_down:
-            direction_x += 1
+            self.direction_x += 1
         if pygame.K_UP in self.keys_down or pygame.K_w in self.keys_down:
-            direction_y -= 1
+            self.direction_y -= 1
         if pygame.K_DOWN in self.keys_down or pygame.K_s in self.keys_down:
-            direction_y += 1
-        speed = 0.02 * self.viewport.cam.width
-        if direction_x != 0 or direction_y != 0:
-            self.viewport.move_cam((direction_x * speed, direction_y * speed))
+            self.direction_y += 1
+
+    def move_cam(self, seconds):
+        speed = seconds * self.viewport.cam.width * self.move_speed
+        if self.direction_x != 0 or self.direction_y != 0:
+            self.viewport.move_cam((self.direction_x * speed, self.direction_y * speed))
 
     def draw(self, events, mouse):
         self.screen.fill(colors.BLACK)
-        # Draw map via viewport. Maybe viewport.draw_map(map) ??
-        #self.map.draw(self.screen, hover=self.hover_hex)
         self.viewport.draw()
         self.screen.blit(self.viewport.surface, (self.viewport.screen_x1, self.viewport.screen_y1))
         pygame.draw.rect(self.screen, (255, 255, 255), [mouse[0]-5, mouse[1]-5, 10, 10])

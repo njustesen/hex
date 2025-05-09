@@ -41,19 +41,14 @@ class Viewport:
         else:
             self.upp = self.upp_width  # Stretch world to height
         self.ppu = 1 / self.upp
-        w = screen_width * self.upp
-        h = screen_height * self.upp
-        self.bounds = pygame.Rect(map.center[0] - w / 2,
-                                  map.center[1] - h / 2,
-                                  w,
-                                  h)
-        self.cam = Camera(self.map.center, screen_width * self.upp, screen_height * self.upp)
+        self.bounds = self.map.rect
+        self.cam = Camera(self.map.center, map.width, map.height)
         self.zoom_level = zoom_level
         self.zoom_speed = zoom_speed
         self.moved = False
         self.cropped_minimap = None
         self.surface = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
-        self.hover = None
+        self.hover_tile = None
 
     def center_cam(self, position):
         self.cam.set_center(position, bounds=self.bounds)
@@ -92,15 +87,15 @@ class Viewport:
         self.surface.fill(self.color)
         if grid is not None:
             self._draw_grid(grid)
-        self.draw_map(self.hover)
+        self.draw_map()
 
-    def draw_map(self, hover, debug=False):
+    def draw_map(self, debug=False):
         for y in range(self.map.rows):
             for x in range(self.map.cols):
                 tile = self.map.tiles[y][x]
                 tile_world_points = [self.world_to_surface(point) for point in tile.points]
                 tile_position = self.world_to_surface(tile.pos)
-                if tile is hover:
+                if tile is self.hover_tile:
                     pygame.draw.polygon(self.surface, (0, 80, 0), tile_world_points)
                 pygame.draw.polygon(self.surface, (0, 80, 0), tile_world_points, 1)
                 if debug:
@@ -219,21 +214,21 @@ class Viewport:
         if mouse_on_surface is not None and zoom_direction != 0:
             mouse_in_world = self.surface_to_world(mouse_on_surface)
             self.cam.change(self.cam.center,
-                            self.bounds.width * self.upp * self.zoom_level,
-                            self.bounds.height * self.upp * self.zoom_level,
-                            bounds=self.bounds)
+                            self.bounds.width * self.zoom_level,
+                            self.bounds.height * self.zoom_level,
+                            map=self.map)
             mouse_in_world_after = self.surface_to_world(mouse_on_surface)
             direction_x = mouse_in_world[0] - mouse_in_world_after[0]
             direction_y = mouse_in_world[1] - mouse_in_world_after[1]
             self.cam.change((self.cam.center[0] + direction_x, self.cam.center[1] + direction_y),
                             self.cam.width,
                             self.cam.height,
-                            bounds=self.bounds)
+                            map=self.map)
     def move_cam(self, direction):
         self.cam.change((self.cam.center[0] + direction[0], self.cam.center[1] + direction[1]),
                         self.cam.width,
                         self.cam.height,
-                        bounds=self.bounds)
+                        map=self.map)
 
 
     def pan_minimap(self):
