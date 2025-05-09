@@ -34,6 +34,38 @@ class Hexagon(Tile):
         ]
 
 
+class IsometricHexagon(Tile):
+
+    def __init__(self, pos, x, y, radius, vertical_scale, width, height, orientation="pointy"):
+        super().__init__(pos, x, y, width, height)
+        self.vertical_scale = vertical_scale
+        self.radius = radius
+        self.orientation = orientation
+        self.points = self._compute_points()
+
+    def iso_transform(self, x, y):
+        iso_x = x - y
+        iso_y = (x + y) / 2
+        return iso_x, iso_y
+
+    def _compute_points(self):
+        cx, cy = self.pos
+        if self.orientation == "flat":
+            angles = range(0, 360, 60)
+        else:
+            angles = [30 + i * 60 for i in range(6)]
+
+        points = []
+        for angle in angles:
+            x = cx + self.radius * math.cos(math.radians(angle))
+            y = cy + (self.radius * self.vertical_scale) * math.sin(math.radians(angle))
+            iso_x = x - y
+            iso_y = (x + y) / 2
+            points.append((iso_x, iso_y))
+
+        return points
+
+
 class SquareTile(Tile):
 
     def __init__(self, pos, x, y, width, height):

@@ -2,7 +2,7 @@ import pygame
 import colors
 import math
 import sys
-from tile import Hexagon, SquareTile, IsometricTile
+from tile import *
 
 
 class GridMap:
@@ -115,6 +115,71 @@ class HexGridMap(GridMap):
                     x_offset += self._horizontal_spacing / 2
                 pos = (x_offset, y_offset)
                 row.append(Hexagon(pos, x, y, self.hex_radius, self.hex_vertical_scale, self.hex_height, self.hex_width, self.hex_orientation))
+            self.tiles.append(row)
+
+    def get_nearest_tile(self, pos):
+        upscale = 1 / self.hex_vertical_scale
+        scaled_pos = (pos[0], pos[1] * upscale)
+        min_distance = sys.maxsize
+        nearest_tile = None
+        for y in range(self.rows):
+            for x in range(self.cols):
+                tile = self.tiles[y][x]
+                scaled_tile_pos = (tile.pos[0], tile.pos[1] * upscale)
+                distance = math.dist(scaled_tile_pos, scaled_pos)
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_tile = tile
+        return nearest_tile
+
+
+class IsometricHexGridMap(GridMap):
+
+    def __init__(self, cols, rows, hex_radius, hex_vertical_scale, hex_orientation="flat"):
+        super().__init__(cols, rows)
+        self.hex_radius = hex_radius  # Radius of the circumscribed circle of a hexagon
+        self.hex_vertical_scale = hex_vertical_scale  # Scale factor for hexagon height (1.0 = regular hexagon)
+        self.hex_orientation = hex_orientation
+        if hex_orientation == "flat":
+            self.hex_width = 2 * self.hex_radius
+            self.hex_height = self.hex_vertical_scale * math.sqrt(3) * self.hex_radius
+            self._horizontal_spacing = 3 / 4 * self.hex_width
+            self._vertical_spacing = self.hex_height
+        elif hex_orientation == "pointy":
+            self.hex_width = self.hex_vertical_scale * math.sqrt(3) * self.hex_radius
+            self.hex_height = 2 * self.hex_radius
+            self._horizontal_spacing = self.hex_width
+            self._vertical_spacing = 3 / 4 * self.hex_height
+        self.generate()
+
+    @property
+    def width(self):
+        return self._horizontal_spacing * (self.cols+1)
+
+    @property
+    def height(self):
+        return self._vertical_spacing * (self.rows+1.5)
+
+    @property
+    def x1(self):
+        return -self._horizontal_spacing
+
+    @property
+    def y1(self):
+        return -self._vertical_spacing
+
+    def generate(self):
+        for y in range(self.rows):
+            row = []
+            for x in range(self.cols):
+                x_offset = x * self._horizontal_spacing
+                y_offset = y * self._vertical_spacing
+                if self.hex_orientation == "flat" and x % 2 == 1:
+                    y_offset += self._vertical_spacing / 2
+                elif self.hex_orientation == "pointy" and y % 2 == 1:
+                    x_offset += self._horizontal_spacing / 2
+                pos = (x_offset, y_offset)
+                row.append(IsometricHexagon(pos, x, y, self.hex_radius, self.hex_vertical_scale, self.hex_height, self.hex_width, self.hex_orientation))
             self.tiles.append(row)
 
     def get_nearest_tile(self, pos):
