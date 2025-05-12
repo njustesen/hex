@@ -3,6 +3,7 @@ import colors
 import sys
 from map import HexGridMap, TileGridMap, IsometricTileGridMap
 from viewport import Viewport
+from unit import Unit
 
 
 class GameEngine:
@@ -17,6 +18,7 @@ class GameEngine:
         self.done = False
         pygame.mouse.set_visible(False)
         self.map = HexGridMap(21, 11, hex_radius=100, hex_vertical_scale=0.9)
+        self.map.tiles[10][10].unit = Unit()
         #self.map = TileGridMap(30, 30, tile_width=80, tile_height=120)
         #self.map = IsometricTileGridMap(20, 20, tile_width=60, tile_height=40)
         self.hover_tile = None
@@ -37,6 +39,8 @@ class GameEngine:
         self.keys_down = set()
         self.keys_pressed = set()
         self.keys_released = set()
+        self.mouse_down = False
+        self.mouse_released = False
         self.zoom_direction = 0
         self.direction_x = 0
         self.direction_y = 0
@@ -64,6 +68,8 @@ class GameEngine:
         self.move_cam(seconds)
         mouse_position = self.viewport.surface_to_world(mouse)
         self.viewport.hover_tile = self.map.get_nearest_tile(mouse_position)
+        if self.mouse_released:
+            self.viewport.selected_tile = self.viewport.hover_tile
 
     def _update_keys(self, events):
         self.keys_pressed.clear()
@@ -93,6 +99,13 @@ class GameEngine:
             self.direction_y -= 1
         if pygame.K_DOWN in self.keys_down or pygame.K_s in self.keys_down:
             self.direction_y += 1
+        mouse_down = pygame.mouse.get_pressed()[0]
+        self.mouse_released = self.mouse_down and not mouse_down
+        self.mouse_down = mouse_down
+        if self.mouse_down:
+            print("Mouse Down")
+        if self.mouse_released:
+            print("Mouse released")
 
     def move_cam(self, seconds):
         speed = seconds * self.viewport.cam.width * self.move_speed

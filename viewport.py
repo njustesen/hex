@@ -49,6 +49,7 @@ class Viewport:
         self.cropped_minimap = None
         self.surface = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
         self.hover_tile = None
+        self.selected_tile = None
 
     def center_cam(self, position):
         self.cam.set_center(position, bounds=self.bounds)
@@ -93,14 +94,29 @@ class Viewport:
         for y in range(self.map.rows):
             for x in range(self.map.cols):
                 tile = self.map.tiles[y][x]
-                tile_world_points = [self.world_to_surface(point) for point in tile.points]
-                tile_position = self.world_to_surface(tile.pos)
-                if tile is self.hover_tile:
-                    pygame.draw.polygon(self.surface, (0, 80, 0), tile_world_points)
-                pygame.draw.polygon(self.surface, (0, 80, 0), tile_world_points, 1)
+                tile_screen_points = [self.world_to_surface(point) for point in tile.points]
+                tile_screen_position = self.world_to_surface(tile.pos)
+                if tile is self.selected_tile:
+                    if tile is self.hover_tile:
+                        pygame.draw.polygon(self.surface, (80, 160, 80), tile_screen_points)
+                    else:
+                        pygame.draw.polygon(self.surface, (40, 120, 40), tile_screen_points)
+                elif tile is self.hover_tile:
+                    pygame.draw.polygon(self.surface, (0, 80, 0), tile_screen_points)
+                pygame.draw.polygon(self.surface, (0, 80, 0), tile_screen_points, 1)
+                if tile.unit:
+                    unit_size = 50
+                    unit_world_points = [
+                        (tile.pos[0] - unit_size / 2, tile.pos[1] - unit_size / 2),
+                        (tile.pos[0] + unit_size / 2, tile.pos[1] - unit_size / 2),
+                        (tile.pos[0] + unit_size / 2, tile.pos[1] + unit_size / 2),
+                        (tile.pos[0] - unit_size / 2, tile.pos[1] + unit_size / 2)
+                    ]
+                    unit_screen_points = [self.world_to_surface(point) for point in unit_world_points]
+                    pygame.draw.polygon(self.surface, (200, 0, 0), unit_screen_points)
                 if debug:
-                    pygame.draw.circle(self.surface, color=colors.GREEN, center=tile_position, radius=4*self.scale, width=1)
-                    self.draw_text_on_screen(self.surface, str(f"{x}, {y}"), screen_position=tile_position, color=colors.GREEN)
+                    pygame.draw.circle(self.surface, color=colors.GREEN, center=tile_screen_position, radius=4*self.scale, width=1)
+                    self.draw_text_on_screen(self.surface, str(f"{x}, {y}"), screen_position=tile_screen_position, color=colors.GREEN)
 
     def _draw_grid(self, grid):
         hori_lines = []

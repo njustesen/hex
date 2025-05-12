@@ -49,24 +49,6 @@ class GridMap:
     def center(self):
         return self.x1 + self.width / 2, self.y1 + self.height / 2
 
-    def draw(self, surface, hover=None, debug=False):
-        for y in range(self.rows):
-            for x in range(self.cols):
-                tile = self.tiles[y][x]
-                if tile is hover:
-                    pygame.draw.polygon(surface, (0, 80, 0), tile.points)
-                pygame.draw.polygon(surface, (0, 80, 0), tile.points, 1)
-                if debug:
-                    pygame.draw.circle(surface, color=colors.GREEN, center=tile.pos, radius=4, width=1)
-                    self.draw_text_on_screen(surface, str(f"{x}, {y}"), x=tile.pos[0], y=tile.pos[1], color=colors.GREEN)
-
-    def draw_text_on_screen(self, surface, text, x, y, color):
-        rendered_text = self.font.render(text, True, color)
-        w = rendered_text.get_width()
-        h = rendered_text.get_height()
-        position = (x - w/2, y - h/2, w, h)
-        surface.blit(rendered_text, position)
-
 
 class HexGridMap(GridMap):
 

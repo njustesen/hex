@@ -10,6 +10,7 @@ class Tile:
         self.width = width
         self.height = height
         self.points = []
+        self.unit = None
 
 
 class Hexagon(Tile):
