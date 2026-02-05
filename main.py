@@ -1,6 +1,7 @@
 import pygame
 import colors
 from engine import GameEngine
+from engine_config import EngineConfig
 
 
 if __name__ == '__main__':
@@ -17,6 +18,8 @@ if __name__ == '__main__':
     screen = pygame.display.set_mode((screen_width, screen_height))
     num_players = 1
 
-    engine = GameEngine(screen_width, screen_height, fullscreen=False)
+    # Initialize the engine config
+    #EngineConfig.initialize(width=screen_width, height=screen_height, fullscreen=False)
+    engine = GameEngine()
 
     engine.run(fps=60)

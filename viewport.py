@@ -3,6 +3,7 @@ import colors
 import math
 from map import GridMap
 from camera import Camera
+from engine_config import EngineConfig
 
 
 class Viewport:
@@ -18,7 +19,6 @@ class Viewport:
                  can_zoom=False,
                  can_move=False,
                  color=colors.BLACK,
-                 zoom_speed=10,
                  primary_viewport=None,
                  is_minimap=False,
                  is_primary=False):
@@ -44,7 +44,6 @@ class Viewport:
         self.bounds = self.map.rect
         self.cam = Camera(self.map.center, map.width, map.height)
         self.zoom_level = zoom_level
-        self.zoom_speed = zoom_speed
         self.moved = False
         self.cropped_minimap = None
         self.surface = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
@@ -208,23 +207,25 @@ class Viewport:
             # Blit the rotated surface onto the screen at the calculated position
             self.surface.blit(rotated_surface, rotated_rect.topleft)
 
-    def update(self, seconds, mouse_pos=None, mouse_down=False, mouse_released=False, 
-               direction_x=0, direction_y=0, zoom_direction=0, move_speed=0.5, zoom_speed=0.5):
+    def update(self, seconds, input_manager=None):
         """Update viewport with optional mouse and keyboard input."""
         self.cam.update(seconds)
         
+        if input_manager is None:
+            return
+        
         # Handle keyboard movement and zoom
-        if direction_x != 0 or direction_y != 0:
-            self.handle_keyboard_movement(direction_x, direction_y, seconds, move_speed)
-        if zoom_direction != 0:
-            self.handle_zoom(zoom_direction, seconds, zoom_speed)
+        if input_manager.direction_x != 0 or input_manager.direction_y != 0:
+            self.handle_keyboard_movement(input_manager.direction_x, input_manager.direction_y, seconds, EngineConfig.move_speed)
+        if input_manager.zoom_direction != 0:
+            self.handle_zoom(input_manager.zoom_direction, seconds, EngineConfig.zoom_speed)
         
         # Handle mouse interactions if provided
-        if mouse_pos is not None:
-            self._handle_mouse_interactions(mouse_pos, mouse_down, mouse_released)
+        if input_manager.mouse_pos is not None:
+            self._handle_mouse_interactions(input_manager.mouse_pos, input_manager.mouse_down, input_manager.mouse_released)
             # Update hover tile if mouse is over this viewport
-            if self.is_within(mouse_pos[0], mouse_pos[1]):
-                self.update_hover_tile(mouse_pos)
+            if self.is_within(input_manager.mouse_pos[0], input_manager.mouse_pos[1]):
+                self.update_hover_tile(input_manager.mouse_pos)
         
         if self.minimap is not None:
             self.minimap.update(seconds)
