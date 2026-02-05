@@ -72,23 +72,8 @@ class Viewport:
         if grid is not None:
             self._draw_grid(grid)
         self.draw_map()
-        if self.is_minimap:
-            self.draw_camera()
         if self.minimap is not None:
             self.minimap.draw()
-
-    def draw_camera(self):
-        x1, x2 = self.primary_viewport.cam.x1, self.primary_viewport.cam.x2
-        y1, y2 = self.primary_viewport.cam.y1, self.primary_viewport.cam.y2
-        x1, y1 = self.world_to_surface((x1, y1))
-        x2, y2 = self.world_to_surface((x2, y2))
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-        x2 = min(self.screen_width, x2)
-        y2 = min(self.screen_height, y2)
-        width = x2 - x1
-        height = y2 - y1
-        pygame.draw.rect(self.surface, (255, 255, 255), (x1, y1, width, height), 1)
 
     def draw_map(self, debug=False):
         for y in range(self.map.rows):

@@ -3,6 +3,7 @@ import colors
 import sys
 from map import HexGridMap, TileGridMap, IsometricTileGridMap
 from viewport import Viewport
+from minimap import Minimap
 from unit import Unit
 
 
@@ -26,34 +27,29 @@ class GameEngine:
         minimap_width = width / 5
         minimap_height = height / 5
 
-        self.minimap = Viewport(screen_x1=width - minimap_width,
-                                screen_y1=height - minimap_height,
-                                screen_width=minimap_width,
-                                screen_height=minimap_height,
-                                zoom_level=1,
-                                map=self.map,
-                                minimap=None,
-                                can_zoom=False,
-                                can_move=False,
-                                zoom_speed=10,
-                                primary_viewport=None,
-                                is_minimap=True,
-                                is_primary=False)
-
         self.viewport = Viewport(screen_x1=0,
                                  screen_y1=0,
                                  screen_width=width,
                                  screen_height=height,
                                  zoom_level=1,
                                  map=self.map,
-                                 minimap=self.minimap,
+                                 minimap=None,
                                  can_zoom=False,
                                  can_move=False,
                                  zoom_speed=10,
                                  is_minimap=False,
                                  is_primary=True)
 
-        self.minimap.primary_viewport = self.viewport
+        self.minimap = Minimap(screen_x1=width - minimap_width,
+                               screen_y1=height - minimap_height,
+                               screen_width=minimap_width,
+                               screen_height=minimap_height,
+                               zoom_level=1,
+                               map=self.map,
+                               primary_viewport=self.viewport,
+                               zoom_speed=10)
+
+        self.viewport.minimap = self.minimap
 
         self.keys_down = set()
         self.keys_pressed = set()
