@@ -50,6 +50,9 @@ class Viewport:
         self.surface = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
         self.hover_tile = None
         self.selected_tile = None
+        self.dragging = False
+        self.prev_mouse_pos = None
+        self.prev_mouse_surface = None
 
     def center_cam(self, position):
         self.cam.set_center(position, bounds=self.bounds)
@@ -205,8 +208,24 @@ class Viewport:
             # Blit the rotated surface onto the screen at the calculated position
             self.surface.blit(rotated_surface, rotated_rect.topleft)
 
-    def update(self, seconds):
+    def update(self, seconds, mouse_pos=None, mouse_down=False, mouse_released=False, 
+               direction_x=0, direction_y=0, zoom_direction=0, move_speed=0.5, zoom_speed=0.5):
+        """Update viewport with optional mouse and keyboard input."""
         self.cam.update(seconds)
+        
+        # Handle keyboard movement and zoom
+        if direction_x != 0 or direction_y != 0:
+            self.handle_keyboard_movement(direction_x, direction_y, seconds, move_speed)
+        if zoom_direction != 0:
+            self.handle_zoom(zoom_direction, seconds, zoom_speed)
+        
+        # Handle mouse interactions if provided
+        if mouse_pos is not None:
+            self._handle_mouse_interactions(mouse_pos, mouse_down, mouse_released)
+            # Update hover tile if mouse is over this viewport
+            if self.is_within(mouse_pos[0], mouse_pos[1]):
+                self.update_hover_tile(mouse_pos)
+        
         if self.minimap is not None:
             self.minimap.update(seconds)
 
@@ -251,3 +270,89 @@ class Viewport:
 
     def is_within(self, x, y):
         return self.screen_x1 <= x <= self.screen_x1 + self.screen_width and self.screen_y1 <= y <= self.screen_y1 + self.screen_height
+
+    def handle_mouse_drag(self, mouse_pos, prev_mouse_pos, mouse_down, mouse_released, is_dragging, dragging_threshold=2):
+        """Handle mouse drag panning for this viewport. Returns True if dragging."""
+        if not mouse_down:
+            return False
+        
+        if prev_mouse_pos is None:
+            return False
+        
+        if not self.is_primary:
+            return False
+        
+        # Calculate mouse movement
+        dx = mouse_pos[0] - prev_mouse_pos[0]
+        dy = mouse_pos[1] - prev_mouse_pos[1]
+        
+        # Start dragging if there's significant movement or already dragging
+        if is_dragging or abs(dx) > dragging_threshold or abs(dy) > dragging_threshold:
+            self.pan_drag((dx, dy))
+            return True
+        
+        return False
+
+    def handle_mouse_click(self, mouse_pos, mouse_released, was_dragging):
+        """Handle mouse click to select tiles. Returns True if a tile was selected."""
+        if mouse_released and not was_dragging:
+            world_pos = self.surface_to_world(mouse_pos)
+            hover_tile = self.map.get_nearest_tile(world_pos)
+            if hover_tile is not None:
+                self.selected_tile = hover_tile
+                return True
+        return False
+
+    def update_hover_tile(self, mouse_pos):
+        """Update the hover tile based on mouse position."""
+        world_pos = self.surface_to_world(mouse_pos)
+        self.hover_tile = self.map.get_nearest_tile(world_pos)
+
+    def handle_keyboard_movement(self, direction_x, direction_y, seconds, move_speed):
+        """Handle keyboard-based camera movement."""
+        if direction_x != 0 or direction_y != 0:
+            speed = seconds * self.cam.width * move_speed
+            self.move_cam((direction_x * speed, direction_y * speed))
+
+    def handle_zoom(self, zoom_direction, seconds, zoom_speed):
+        """Handle zoom input."""
+        if zoom_direction != 0:
+            self.zoom_cam(zoom_direction * zoom_speed * seconds)
+
+    def _handle_mouse_interactions(self, mouse_pos, mouse_down, mouse_released):
+        """Handle mouse interactions (dragging, clicking) for viewport and minimap."""
+        surface = self._get_surface_at(mouse_pos[0], mouse_pos[1])
+        
+        if mouse_down:
+            if surface is not None:
+                if self.prev_mouse_pos is not None and self.prev_mouse_surface == surface:
+                    # Continue dragging on the same surface
+                    if surface.is_primary:
+                        self.dragging = self.handle_mouse_drag(
+                            mouse_pos, self.prev_mouse_pos, mouse_down, mouse_released, self.dragging
+                        )
+                    elif surface.is_minimap and self.minimap is not None:
+                        self.minimap.handle_mouse_drag(mouse_pos, self.prev_mouse_pos, mouse_down)
+                elif self.prev_mouse_surface is None and surface.is_minimap and self.minimap is not None:
+                    # Start dragging on minimap immediately
+                    self.minimap.handle_mouse_drag(mouse_pos, None, mouse_down)
+                
+                self.prev_mouse_pos = mouse_pos
+                self.prev_mouse_surface = surface
+        else:
+            # Mouse released or not down
+            if mouse_released:
+                if surface == self:
+                    self.handle_mouse_click(mouse_pos, mouse_released, self.dragging)
+                self.dragging = False
+            self.prev_mouse_pos = None
+            self.prev_mouse_surface = None
+
+    def _get_surface_at(self, x, y):
+        """Get the surface (viewport or minimap) at the given coordinates."""
+        if self.minimap is not None:
+            if self.minimap.is_within(x, y):
+                return self.minimap
+        if self.is_within(x, y):
+            return self
+        return None
