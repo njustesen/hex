@@ -1,22 +1,20 @@
 import pygame
 import colors
 import sys
-import platform
-import subprocess
-import re
 from map import HexGridMap, TileGridMap, IsometricTileGridMap
 from viewport import Viewport
 from minimap import Minimap
 from unit import Unit
 from input_manager import InputManager
 from engine_config import EngineConfig
+from display_manager import DisplayManager
 
 
 class GameEngine:
 
     def __init__(self):
         # Get the actual screen resolution
-        screen_width, screen_height = self._get_screen_resolution()
+        screen_width, screen_height = DisplayManager.get_screen_resolution()
         print(f"Screen width: {screen_width}, screen height: {screen_height}")
         
         if EngineConfig.fullscreen:
@@ -24,8 +22,6 @@ class GameEngine:
             EngineConfig.height = screen_height
             self.screen = pygame.display.set_mode((EngineConfig.width, EngineConfig.height), pygame.FULLSCREEN)
         else:
-            EngineConfig.width = screen_width
-            EngineConfig.height = screen_height
             EngineConfig.fullscreen = False
             self.screen = pygame.display.set_mode((EngineConfig.width, EngineConfig.height))
         self.done = False
@@ -91,45 +87,6 @@ class GameEngine:
         self.screen.blit(viewport.surface, (viewport.screen_x1, viewport.screen_y1))
         if border > 0:
             pygame.draw.rect(self.screen, border_color, [viewport.screen_x1-border, viewport.screen_y1-border, viewport.screen_width+2*border, viewport.screen_height+2*border], border)
-    
-    def _get_screen_resolution(self):
-        """Get the actual physical screen resolution, especially important on macOS Retina displays."""
-        if platform.system() == 'Darwin':  # macOS
-            try:
-                # Use system_profiler to get actual display resolution on macOS
-                result = subprocess.run(
-                    ['system_profiler', 'SPDisplaysDataType'],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-                if result.returncode == 0:
-                    # Parse the output to find resolution
-                    lines = result.stdout.split('\n')
-                    for i, line in enumerate(lines):
-                        if 'Resolution:' in line:
-                            # Look for resolution like "2880 x 1800" or "2560 x 1600"
-                            parts = line.split('Resolution:')
-                            if len(parts) > 1:
-                                res_text = parts[1].strip()
-                                # Extract numbers
-                                numbers = re.findall(r'\d+', res_text)
-                                if len(numbers) >= 2:
-                                    return int(numbers[0]), int(numbers[1])
-            except Exception as e:
-                print(f"Warning: Could not get macOS screen resolution: {e}")
-        
-        # Fallback: use pygame's get_desktop_sizes() or display info
-        try:
-            desktop_sizes = pygame.display.get_desktop_sizes()
-            if desktop_sizes:
-                return desktop_sizes[0]
-        except:
-            pass
-        
-        # Final fallback
-        display_info = pygame.display.Info()
-        return display_info.current_w, display_info.current_h
     
     def _check_quit(self, events):
         for event in events:
