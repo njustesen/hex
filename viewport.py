@@ -19,7 +19,7 @@ class Viewport:
                  can_move=False,
                  color=colors.BLACK,
                  zoom_speed=10,
-                 viewports=None,
+                 primary_viewport=None,
                  is_minimap=False,
                  is_primary=False):
         self.screen_x1 = screen_x1
@@ -31,7 +31,7 @@ class Viewport:
         self.minimap = minimap
         self.is_primary = is_primary
         self.is_minimap = is_minimap
-        self.viewports = viewports if viewports is not None else []
+        self.primary_viewport = primary_viewport
         self.can_zoom = can_zoom
         self.can_move = can_move
         self.upp_width = map.width / screen_width
@@ -67,28 +67,28 @@ class Viewport:
         y_world = self.cam.y1 + self.cam.height * norm_y
         return x_world, y_world
 
-    def draw_minimap(self):
-        if self.minimap is not None and (self.cropped_minimap is None or self.moved):
-            norm_x1 = (self.cam.x1 - self.minimap.x1) / self.minimap.width
-            norm_y1 = (self.cam.y1 - self.minimap.y1) / self.minimap.height
-            img_x1 = math.floor(norm_x1 * self.minimap.image_width)
-            img_y1 = math.floor(norm_y1 * self.minimap.image_height)
-            norm_x2 = (self.cam.x2 - self.minimap.x1) / self.minimap.width
-            norm_y2 = (self.cam.y2 - self.minimap.y1) / self.minimap.height
-            img_x2 = math.ceil(norm_x2 * self.minimap.image_width)
-            img_y2 = math.ceil(norm_y2 * self.minimap.image_height)
-            img_width = img_x2 - img_x1
-            img_height = img_y2 - img_y1
-            scale = self.screen_width / img_width
-            self.cropped_minimap = self.minimap.crop(img_x1, img_y1, img_width, img_height)
-            self.cropped_minimap = pygame.transform.rotozoom(self.cropped_minimap, 0, scale)
-        self.surface.blit(self.cropped_minimap, (0, 0))
-
     def draw(self, grid=None):
         self.surface.fill(self.color)
         if grid is not None:
             self._draw_grid(grid)
         self.draw_map()
+        if self.is_minimap:
+            self.draw_camera()
+        if self.minimap is not None:
+            self.minimap.draw()
+
+    def draw_camera(self):
+        x1, x2 = self.primary_viewport.cam.x1, self.primary_viewport.cam.x2
+        y1, y2 = self.primary_viewport.cam.y1, self.primary_viewport.cam.y2
+        x1, y1 = self.world_to_surface((x1, y1))
+        x2, y2 = self.world_to_surface((x2, y2))
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(self.screen_width, x2)
+        y2 = min(self.screen_height, y2)
+        width = x2 - x1
+        height = y2 - y1
+        pygame.draw.rect(self.surface, (255, 255, 255), (x1, y1, width, height), 1)
 
     def draw_map(self, debug=False):
         for y in range(self.map.rows):
@@ -222,6 +222,8 @@ class Viewport:
 
     def update(self, seconds):
         self.cam.update(seconds)
+        if self.minimap is not None:
+            self.minimap.update(seconds)
 
     def zoom_cam(self, zoom_direction):
         mouse_on_surface = self.mouse_on_surface()
@@ -246,17 +248,6 @@ class Viewport:
                         self.cam.height,
                         map=self.map)
 
-
-    def pan_minimap(self):
-        mouse_on_surface = self.mouse_on_surface()
-        if mouse_on_surface is not None:
-            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
-            point_world = self.surface_to_world(mouse_on_surface)
-            for viewport in self.viewports:
-                viewport.cam.set_center(point_world[0], point_world[1], bounds=self.bounds)
-                viewport.moved = True
-            self.moved = True
-
     def pan_drag(self, mouse_movement):
         mouse_surface = self.mouse_on_surface()
         if mouse_surface is not None:
@@ -272,3 +263,6 @@ class Viewport:
         if self.screen_x1 <= pos[0] <= self.screen_x1 + self.screen_width and self.screen_y1 <= pos[1] <= self.screen_y1 + self.screen_height:
             return pos
         return None
+
+    def is_within(self, x, y):
+        return self.screen_x1 <= x <= self.screen_x1 + self.screen_width and self.screen_y1 <= y <= self.screen_y1 + self.screen_height

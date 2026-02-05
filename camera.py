@@ -78,15 +78,14 @@ class Camera:
     def norm(self, pos):
         return (pos[0] - self.x1) / self.width, (pos[1] - self.y1) / self.height
 
-    def change(self, center, width, height, map=None):
-        self._center = center
-        self.width = width
-        self.height = height
+    def change(self, center=None, width=None, height=None, map=None):
+        self._center = center if center is not None else self._center
+        self.width = width if width is not None else self.width
+        self.height = height if height is not None else self.height
         if map:
             self._adjust(map)
 
     def _adjust(self, map):
-        #return
         if self.width > map.width:
             self._center = (map.center[0], self._center[1])
             self.width = map.width
@@ -101,7 +100,7 @@ class Camera:
             self._center = (self._center[0], map.y1 + self.height / 2)
         if self._y2 > map.y2:
             self._center = (self._center[0], map.y2 - self.height / 2)
-
+    
     def screen_shake(self, seconds):
         self.shaking_time = seconds
 
