@@ -11,6 +11,8 @@ class Camera:
         self.shake_offset_x = 0
         self.shake_offset_y = 0
         self.shaking_time = 0
+        self.dragging = False
+        self.drag_start_pos = None
 
     def rel_mouse(self):
         pos = pygame.mouse.get_pos()
@@ -69,8 +71,8 @@ class Camera:
         return self._center[0] + self.shake_offset_x, self._center[1] + self.shake_offset_y
 
     def set_center(self, position, map=None):
-        _center = position
-        if bounds:
+        self._center = position
+        if map:
             self._adjust(map)
 
     def norm(self, pos):

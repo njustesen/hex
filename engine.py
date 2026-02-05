@@ -41,6 +41,8 @@ class GameEngine:
         self.keys_released = set()
         self.mouse_down = False
         self.mouse_released = False
+        self.prev_mouse_pos = None
+        self.dragging = False
         self.zoom_direction = 0
         self.direction_x = 0
         self.direction_y = 0
@@ -64,11 +66,12 @@ class GameEngine:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+        self._handle_drag_panning(mouse)
         self.viewport.zoom_cam(self.zoom_direction * self.zoom_speed * seconds)
         self.move_cam(seconds)
         mouse_position = self.viewport.surface_to_world(mouse)
         self.viewport.hover_tile = self.map.get_nearest_tile(mouse_position)
-        if self.mouse_released:
+        if self.mouse_released and not self.dragging:
             self.viewport.selected_tile = self.viewport.hover_tile
 
     def _update_keys(self, events):
@@ -102,10 +105,30 @@ class GameEngine:
         mouse_down = pygame.mouse.get_pressed()[0]
         self.mouse_released = self.mouse_down and not mouse_down
         self.mouse_down = mouse_down
+
+    def _handle_drag_panning(self, mouse):
+        """Handle mouse drag panning of the camera."""
         if self.mouse_down:
-            print("Mouse Down")
-        if self.mouse_released:
-            print("Mouse released")
+            if self.prev_mouse_pos is not None:
+                # Calculate mouse movement
+                dx = mouse[0] - self.prev_mouse_pos[0]
+                dy = mouse[1] - self.prev_mouse_pos[1]
+                
+                # Start dragging if there's significant movement
+                if not self.dragging and (abs(dx) > 2 or abs(dy) > 2):
+                    self.dragging = True
+                
+                # Update camera position if dragging
+                if self.dragging:
+                    self.viewport.pan_drag((dx, dy))
+            
+            # Update previous mouse position for next frame
+            self.prev_mouse_pos = mouse
+        else:
+            # Mouse released or not down
+            if self.mouse_released:
+                self.dragging = False
+            self.prev_mouse_pos = None
 
     def move_cam(self, seconds):
         speed = seconds * self.viewport.cam.width * self.move_speed
