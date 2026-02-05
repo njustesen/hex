@@ -23,19 +23,40 @@ class GameEngine:
         #self.map = IsometricTileGridMap(20, 20, tile_width=60, tile_height=40)
         self.hover_tile = None
 
+        minimap_width = width / 5
+        minimap_height = height / 5
+
+        self.minimap = Viewport(screen_x1=width - minimap_width,
+                                screen_y1=height - minimap_height,
+                                screen_width=minimap_width,
+                                screen_height=minimap_height,
+                                zoom_level=1,
+                                map=self.map,
+                                minimap=None,
+                                can_zoom=False,
+                                can_move=False,
+                                zoom_speed=10,
+                                viewports=None,
+                                is_minimap=True,
+                                is_primary=False)
+
         self.viewport = Viewport(screen_x1=0,
                                  screen_y1=0,
                                  screen_width=width,
                                  screen_height=height,
                                  zoom_level=1,
                                  map=self.map,
-                                 minimap=None,
+                                 minimap=self.minimap,
                                  can_zoom=False,
                                  can_move=False,
                                  zoom_speed=10,
-                                 viewports=None,
                                  is_minimap=False,
-                                 is_primary=False)
+                                 is_primary=True)
+
+        self.minimap.viewports = [self.viewport]
+        
+        self.viewports = [self.viewport, self.minimap]
+
         self.keys_down = set()
         self.keys_pressed = set()
         self.keys_released = set()
@@ -67,12 +88,14 @@ class GameEngine:
                 pygame.quit()
                 sys.exit()
         self._handle_drag_panning(mouse)
-        self.viewport.zoom_cam(self.zoom_direction * self.zoom_speed * seconds)
-        self.move_cam(seconds)
-        mouse_position = self.viewport.surface_to_world(mouse)
-        self.viewport.hover_tile = self.map.get_nearest_tile(mouse_position)
-        if self.mouse_released and not self.dragging:
-            self.viewport.selected_tile = self.viewport.hover_tile
+        for viewport in self.viewports:
+            if viewport.is_primary:
+                viewport.zoom_cam(self.zoom_direction * self.zoom_speed * seconds)
+                self.move_cam(seconds)
+                mouse_position = self.viewport.surface_to_world(mouse)
+                self.viewport.hover_tile = self.map.get_nearest_tile(mouse_position)
+                if self.mouse_released and not self.dragging:
+                    self.viewport.selected_tile = self.viewport.hover_tile
 
     def _update_keys(self, events):
         self.keys_pressed.clear()
@@ -137,8 +160,9 @@ class GameEngine:
 
     def draw(self, events, mouse):
         self.screen.fill(colors.BLACK)
-        self.viewport.draw()
-        self.screen.blit(self.viewport.surface, (self.viewport.screen_x1, self.viewport.screen_y1))
+        for viewport in self.viewports:
+            viewport.draw()
+            self.screen.blit(viewport.surface, (viewport.screen_x1, viewport.screen_y1))
         pygame.draw.rect(self.screen, (255, 255, 255), [mouse[0]-5, mouse[1]-5, 10, 10])
         pygame.display.flip()
 
