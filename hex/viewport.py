@@ -249,19 +249,15 @@ class Viewport:
 
     def zoom_cam(self, zoom_direction):
         mouse_on_surface = self.mouse_on_surface()
-        effective_zoom_direction = zoom_direction
         if self.zoom_level + zoom_direction < 0.1:
-            effective_zoom_direction = 0.1 - self.zoom_level
-        elif self.zoom_level + zoom_direction > 1:
-            effective_zoom_direction = 1 - self.zoom_level
-        else:
-            effective_zoom_direction = zoom_direction
-        self.zoom_level += effective_zoom_direction
+            zoom_direction = 0.1 - self.zoom_level
+        self.zoom_level += zoom_direction
+        self.zoom_level = min(1, max(0.1, self.zoom_level))
         if mouse_on_surface is not None and zoom_direction != 0:
             mouse_in_world = self.surface_to_world(mouse_on_surface)
             self.cam.change(self.cam.center,
-                            self.cam.width + self.cam.width * effective_zoom_direction,
-                            self.cam.height + self.cam.height * effective_zoom_direction)
+                            self.cam.width + self.cam.width * zoom_direction,
+                            self.cam.height + self.cam.height * zoom_direction)
             mouse_in_world_after = self.surface_to_world(mouse_on_surface)
             direction_x = mouse_in_world[0] - mouse_in_world_after[0]
             direction_y = mouse_in_world[1] - mouse_in_world_after[1]
