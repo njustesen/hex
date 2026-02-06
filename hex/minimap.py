@@ -67,7 +67,7 @@ class Minimap(Viewport):
         world_x1, world_y1 = self.surface_to_world((surface_x1, surface_y1))
         
         if self.primary_viewport is not None:
-            self.primary_viewport.cam.change(center=(world_x1, world_y1), map=self.primary_viewport.map)
+            self.primary_viewport.cam.change(center=(world_x1, world_y1))
             self.primary_viewport.moved = True
             return True
         
