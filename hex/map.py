@@ -1,8 +1,8 @@
 import pygame
-import colors
+from hex import colors
 import math
 import sys
-from tile import Hexagon, SquareTile, IsometricTile
+from hex.tile import Hexagon, SquareTile, IsometricTile
 
 
 class GridMap:
@@ -152,6 +152,9 @@ class TileGridMap(GridMap):
     def get_nearest_tile(self, pos):
         x_idx = int((pos[0] + self.tile_width / 2) / self.tile_width)
         y_idx = int((pos[1] + self.tile_height / 2) / self.tile_height)
+        # Clamp indices to valid range
+        x_idx = max(0, min(self.cols - 1, x_idx))
+        y_idx = max(0, min(self.rows - 1, y_idx))
         return self.tiles[y_idx][x_idx]
 
 

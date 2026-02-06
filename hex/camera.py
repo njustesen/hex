@@ -4,10 +4,13 @@ import pygame
 
 class Camera:
 
-    def __init__(self, center, width, height):
+    def __init__(self, center, width, height, bounds: pygame.Rect=None):
         self._center = center
+        self.bounds = bounds
         self.width = width
         self.height = height
+        self.w_to_h_ratio = width / height
+        self.h_to_w_ratio = height / width
         self.shake_offset_x = 0
         self.shake_offset_y = 0
         self.shaking_time = 0
@@ -70,36 +73,38 @@ class Camera:
     def center(self):
         return self._center[0] + self.shake_offset_x, self._center[1] + self.shake_offset_y
 
-    def set_center(self, position, map=None):
+    def set_center(self, position):
         self._center = position
         if map:
-            self._adjust(map)
+            self._adjust()
 
     def norm(self, pos):
         return (pos[0] - self.x1) / self.width, (pos[1] - self.y1) / self.height
 
-    def change(self, center=None, width=None, height=None, map=None):
+    def change(self, center=None, width=None, height=None):
         self._center = center if center is not None else self._center
         self.width = width if width is not None else self.width
         self.height = height if height is not None else self.height
-        if map:
-            self._adjust(map)
+        if self.bounds is not None:
+            self._adjust()
 
-    def _adjust(self, map):
-        if self.width > map.width:
-            self._center = (map.center[0], self._center[1])
-            self.width = map.width
-        if self.height > map.height:
-            self._center = (self._center[0], map.center[1])
-            self.height = map.height
-        if self._x1 < map.x1:
-            self._center = (map.x1 + self.width / 2, self._center[1])
-        if self._x2 > map.x2:
-            self._center = (map.x2 - self.width / 2, self._center[1])
-        if self._y1 < map.y1:
-            self._center = (self._center[0], map.y1 + self.height / 2)
-        if self._y2 > map.y2:
-            self._center = (self._center[0], map.y2 - self.height / 2)
+    def _adjust(self):
+        if self.width > self.bounds.width:
+            self._center = (self.bounds.center[0], self._center[1])
+            self.width = self.bounds.width
+            self.height = self.width * self.h_to_w_ratio
+        if self.height > self.bounds.height:
+            self._center = (self._center[0], self.bounds.center[1])
+            self.height = self.bounds.height
+            self.width = self.height * self.w_to_h_ratio
+        if self._x1 < self.bounds.x:
+            self._center = (self.bounds.x + self.width / 2, self._center[1])
+        if self._x2 > self.bounds.x + self.bounds.width:
+            self._center = (self.bounds.x + self.bounds.width - self.width / 2, self._center[1])
+        if self._y1 < self.bounds.y:
+            self._center = (self._center[0], self.bounds.y + self.height / 2)
+        if self._y2 > self.bounds.y + self.bounds.height:
+            self._center = (self._center[0], self.bounds.y + self.bounds.height - self.height / 2)
     
     def screen_shake(self, seconds):
         self.shaking_time = seconds

@@ -1,9 +1,9 @@
 import pygame
-import colors
+from hex import colors
 import math
-from map import GridMap
-from camera import Camera
-from engine_config import EngineConfig
+from hex.map import GridMap
+from hex.camera import Camera
+from hex.engine_config import EngineConfig
 
 
 class Viewport:
@@ -26,6 +26,7 @@ class Viewport:
         self.screen_y1 = screen_y1
         self.screen_width = screen_width
         self.screen_height = screen_height
+        self.screen_ratio = screen_width / screen_height
         self.color = color
         self.map = map
         self.minimap = minimap
@@ -42,7 +43,23 @@ class Viewport:
             self.upp = self.upp_width  # Stretch world to height
         self.ppu = 1 / self.upp
         self.bounds = self.map.rect
-        self.cam = Camera(self.map.center, map.width, map.height)
+        self.map_ratio = map.width / map.height
+        if self.is_minimap:
+            if self.map_ratio > self.screen_ratio:
+                # Map is wider than viewport -> show entire width of map
+                self.cam = Camera(self.map.center, map.width, map.width * (screen_height/screen_width))
+            else:
+                # Map is taller than viewport -> show entire height of map
+                self.cam = Camera(self.map.center, map.height * (screen_width/screen_height), map.height)
+        else:
+            if self.map_ratio > self.screen_ratio:
+                # Map is wider than viewport -> show entire height of map and crop width
+                bounds = pygame.Rect(self.map.x1, self.map.y1, map.width, map.height)
+                self.cam = Camera(self.map.center, map.height * (screen_width/screen_height), map.height, bounds=bounds)
+            else:
+                # Map is taller than viewport -> show entire width of map and crop height
+                bounds = pygame.Rect(self.map.x1, self.map.y1, map.width, map.height)
+                self.cam = Camera(self.map.center, map.width, map.width * (screen_height/screen_width), bounds=self.bounds)
         self.zoom_level = zoom_level
         self.moved = False
         self.cropped_minimap = None
@@ -57,7 +74,7 @@ class Viewport:
         self.cam.set_center(position, bounds=self.bounds)
 
     def world_to_surface(self, world_position):
-        x_norm_cam, y_norm_cam = self.cam.norm((world_position[0], world_position[1]))
+        x_norm_cam, y_norm_cam = self.cam.norm(world_position)
         x_viewport = x_norm_cam * self.screen_width
         y_viewport = y_norm_cam * self.screen_height
         return x_viewport, y_viewport
@@ -117,11 +134,11 @@ class Viewport:
         for y_world in hori_lines:
             point_start = self.world_to_surface((self.map.x1, y_world))
             point_end = self.world_to_surface((self.map.x1 + self.map.width, y_world))
-            pygame.draw.line(self.surface, color=colors.GREEN, start_pos=point_start, end_pos=point_end)
+            pygame.draw.line(self.surface, color=colors.GREY, start_pos=point_start, end_pos=point_end)
         for x_world in vert_lines:
             point_start = self.world_to_surface((x_world, self.map.y1))
             point_end = self.world_to_surface((x_world, self.map.y1 + self.map.height))
-            pygame.draw.line(self.surface, color=colors.GREEN, start_pos=point_start, end_pos=point_end)
+            pygame.draw.line(self.surface, color=colors.GREY, start_pos=point_start, end_pos=point_end)
 
     @property
     def scale(self):
@@ -232,26 +249,29 @@ class Viewport:
 
     def zoom_cam(self, zoom_direction):
         mouse_on_surface = self.mouse_on_surface()
-        self.zoom_level += zoom_direction
-        self.zoom_level = min(1, max(0.1, self.zoom_level))
+        effective_zoom_direction = zoom_direction
+        if self.zoom_level + zoom_direction < 0.1:
+            effective_zoom_direction = 0.1 - self.zoom_level
+        elif self.zoom_level + zoom_direction > 1:
+            effective_zoom_direction = 1 - self.zoom_level
+        else:
+            effective_zoom_direction = zoom_direction
+        self.zoom_level += effective_zoom_direction
         if mouse_on_surface is not None and zoom_direction != 0:
             mouse_in_world = self.surface_to_world(mouse_on_surface)
             self.cam.change(self.cam.center,
-                            self.bounds.width * self.zoom_level,
-                            self.bounds.height * self.zoom_level,
-                            map=self.map)
+                            self.cam.width + self.cam.width * effective_zoom_direction,
+                            self.cam.height + self.cam.height * effective_zoom_direction)
             mouse_in_world_after = self.surface_to_world(mouse_on_surface)
             direction_x = mouse_in_world[0] - mouse_in_world_after[0]
             direction_y = mouse_in_world[1] - mouse_in_world_after[1]
             self.cam.change((self.cam.center[0] + direction_x, self.cam.center[1] + direction_y),
                             self.cam.width,
-                            self.cam.height,
-                            map=self.map)
+                            self.cam.height)
     def move_cam(self, direction):
         self.cam.change((self.cam.center[0] + direction[0], self.cam.center[1] + direction[1]),
                         self.cam.width,
-                        self.cam.height,
-                        map=self.map)
+                        self.cam.height)
 
     def pan_drag(self, mouse_movement):
         mouse_surface = self.mouse_on_surface()

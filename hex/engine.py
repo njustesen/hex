@@ -1,13 +1,13 @@
 import pygame
-import colors
+from hex import colors
 import sys
-from map import HexGridMap, TileGridMap, IsometricTileGridMap
-from viewport import Viewport
-from minimap import Minimap
-from unit import Unit
-from input_manager import InputManager
-from engine_config import EngineConfig
-from display_manager import DisplayManager
+from hex.map import HexGridMap, TileGridMap, IsometricTileGridMap
+from hex.viewport import Viewport
+from hex.minimap import Minimap
+from hex.unit import Unit
+from hex.input_manager import InputManager
+from hex.engine_config import EngineConfig
+from hex.display_manager import DisplayManager
 
 
 class GameEngine:
@@ -15,7 +15,6 @@ class GameEngine:
     def __init__(self):
         # Get the actual screen resolution
         screen_width, screen_height = DisplayManager.get_screen_resolution()
-        print(f"Screen width: {screen_width}, screen height: {screen_height}")
         
         if EngineConfig.fullscreen:
             EngineConfig.width = screen_width
@@ -26,12 +25,15 @@ class GameEngine:
             self.screen = pygame.display.set_mode((EngineConfig.width, EngineConfig.height))
         self.done = False
         pygame.mouse.set_visible(False)
-        self.map = HexGridMap(21, 11, hex_radius=100, hex_vertical_scale=0.9)
-        self.map.tiles[10][10].unit = Unit()
-        #self.map = TileGridMap(30, 30, tile_width=80, tile_height=120)
+        self.map = HexGridMap(21, 11, hex_radius=100, hex_vertical_scale=0.4)
+        #self.map = TileGridMap(30, 30, tile_width=80, tile_height=80)
         #self.map = IsometricTileGridMap(20, 20, tile_width=60, tile_height=40)
 
-        minimap_width = EngineConfig.width / 5
+        self.map.tiles[10][10].unit = Unit()
+
+        map_ratio = self.map.width / self.map.height
+
+        minimap_width = EngineConfig.height / 5 * map_ratio
         minimap_height = EngineConfig.height / 5
 
         self.viewport = Viewport(screen_x1=0,
@@ -83,7 +85,7 @@ class GameEngine:
         pygame.display.flip()
 
     def draw_viewport(self, viewport: Viewport, border=0, border_color=colors.RED):
-        viewport.draw()
+        viewport.draw(grid=80)
         self.screen.blit(viewport.surface, (viewport.screen_x1, viewport.screen_y1))
         if border > 0:
             pygame.draw.rect(self.screen, border_color, [viewport.screen_x1-border, viewport.screen_y1-border, viewport.screen_width+2*border, viewport.screen_height+2*border], border)

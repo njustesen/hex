@@ -1,7 +1,7 @@
 import pygame
-import colors
-from engine import GameEngine
-from engine_config import EngineConfig
+from hex import colors
+from hex.engine import GameEngine
+from hex.engine_config import EngineConfig
 
 
 if __name__ == '__main__':
