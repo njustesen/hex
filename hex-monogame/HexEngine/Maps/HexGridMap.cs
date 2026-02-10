@@ -14,6 +14,23 @@ public class HexGridMap : GridMap
     private float _horizontalSpacing;
     private float _verticalSpacing;
 
+    // Flat-top hex neighbor offsets: [edgeIndex][even/odd col] = (dx, dy)
+    private static readonly int[,,] FlatNeighborOffsets = new int[6, 2, 2]
+    {
+        // Edge 0 (SE): even col (x+1, y+0), odd col (x+1, y+1)
+        { { 1, 0 }, { 1, 1 } },
+        // Edge 1 (S):  both (x+0, y+1)
+        { { 0, 1 }, { 0, 1 } },
+        // Edge 2 (SW): even col (x-1, y+0), odd col (x-1, y+1)
+        { { -1, 0 }, { -1, 1 } },
+        // Edge 3 (NW): even col (x-1, y-1), odd col (x-1, y+0)
+        { { -1, -1 }, { -1, 0 } },
+        // Edge 4 (N):  both (x+0, y-1)
+        { { 0, -1 }, { 0, -1 } },
+        // Edge 5 (NE): even col (x+1, y-1), odd col (x+1, y+0)
+        { { 1, -1 }, { 1, 0 } },
+    };
+
     public HexGridMap(int cols, int rows, float hexRadius, float hexVerticalScale, string hexOrientation = "flat")
         : base(cols, rows)
     {
@@ -47,6 +64,23 @@ public class HexGridMap : GridMap
         : _verticalSpacing * (Rows + 1.5f);
     public override float X1 => -_horizontalSpacing;
     public override float Y1 => -_verticalSpacing;
+    public override int EdgeCount => 6;
+
+    public override int GetOppositeEdge(int edgeIndex) => (edgeIndex + 3) % 6;
+
+    public override Tile? GetNeighbor(Tile tile, int edgeIndex)
+    {
+        if (edgeIndex < 0 || edgeIndex >= 6) return null;
+
+        int parity = tile.X % 2; // 0 = even, 1 = odd
+        int nx = tile.X + FlatNeighborOffsets[edgeIndex, parity, 0];
+        int ny = tile.Y + FlatNeighborOffsets[edgeIndex, parity, 1];
+
+        if (nx < 0 || nx >= Cols || ny < 0 || ny >= Rows)
+            return null;
+
+        return Tiles[ny][nx];
+    }
 
     private void Generate()
     {

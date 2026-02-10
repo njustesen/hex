@@ -5,6 +5,8 @@ using HexEngine.Maps;
 
 namespace HexEngine;
 
+public enum GameState { Menu, Playing }
+
 public class HexGame : Game
 {
     private GraphicsDeviceManager _graphics;
@@ -15,8 +17,11 @@ public class HexGame : Game
     private Minimap _minimap = null!;
     private InputManager _inputManager = null!;
     private DebugMenu _debugMenu = null!;
+    private MapEditor _editor = null!;
+    private StartupMenu _startupMenu = null!;
     private SpriteFont _debugFont = null!;
     private int _currentMapMode = 1;
+    private GameState _state = GameState.Menu;
 
     public HexGame()
     {
@@ -34,6 +39,10 @@ public class HexGame : Game
         EngineConfig.Load();
         _inputManager = new InputManager();
         _debugMenu = new DebugMenu();
+        _editor = new MapEditor();
+        _startupMenu = new StartupMenu();
+
+        // Create a default map (used during menu for background, replaced when playing)
         SetupMap(1);
         base.Initialize();
     }
@@ -52,21 +61,24 @@ public class HexGame : Game
         if (mode != 1)
             EngineConfig.PerspectiveFactor = 0f;
 
-        _map.Tiles[10][10].Unit = new Unit();
+        SetupViewport();
+    }
 
-        // Varied terrain elevations
-        _map.Tiles[5][10].Elevation = 1;
-        _map.Tiles[5][11].Elevation = 1;
-        _map.Tiles[4][10].Elevation = 1;
-        _map.Tiles[4][11].Elevation = 2;
-        _map.Tiles[4][12].Elevation = 1;
-        _map.Tiles[3][11].Elevation = 3;
-        _map.Tiles[3][12].Elevation = 2;
-        _map.Tiles[6][8].Elevation = 1;
-        _map.Tiles[7][7].Elevation = 1;
-        _map.Tiles[7][8].Elevation = 2;
-        _map.Tiles[8][8].Elevation = 1;
+    private void SetupMapFromGrid(GridMap map)
+    {
+        _map = map;
+        _currentMapMode = map switch
+        {
+            HexGridMap => 1,
+            TileGridMap => 2,
+            IsometricTileGridMap => 3,
+            _ => 1
+        };
+        SetupViewport();
+    }
 
+    private void SetupViewport()
+    {
         float mapRatio = _map.Width / _map.Height;
         float minimapHeight = EngineConfig.Height / 5f;
         float minimapWidth = minimapHeight * mapRatio;
@@ -104,26 +116,116 @@ public class HexGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        if (Keyboard.GetState().IsKeyDown(Keys.Escape))
-            Exit();
-
         float seconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
         _inputManager.Update();
-        _debugMenu.Update();
 
-        if (_inputManager.MapModePressed != 0 && _inputManager.MapModePressed != _currentMapMode)
-            SetupMap(_inputManager.MapModePressed);
-
-        // Only pass input to viewport when debug menu isn't consuming arrow keys
-        if (!_debugMenu.ConsumesArrowKeys)
-            _viewport.Update(seconds, _inputManager);
-        else
-            _viewport.Update(seconds);
+        switch (_state)
+        {
+            case GameState.Menu:
+                UpdateMenu();
+                break;
+            case GameState.Playing:
+                UpdatePlaying(seconds);
+                break;
+        }
 
         base.Update(gameTime);
     }
 
+    private void UpdateMenu()
+    {
+        _startupMenu.Update(_inputManager);
+
+        if (_startupMenu.Quit)
+            Exit();
+
+        if (_startupMenu.Done && _startupMenu.ResultMap != null)
+        {
+            SetupMapFromGrid(_startupMenu.ResultMap);
+            _editor.SetLastSavePath(_startupMenu.ResultMapPath);
+            _state = GameState.Playing;
+        }
+    }
+
+    private void UpdatePlaying(float seconds)
+    {
+        _debugMenu.Update();
+
+        // F2 toggles editor
+        if (_inputManager.F2Pressed)
+            _editor.Active = !_editor.Active;
+
+        // Escape returns to menu when not in editor
+        if (_inputManager.EscapePressed)
+        {
+            if (_editor.Active)
+            {
+                _editor.Active = false;
+            }
+            else
+            {
+                _state = GameState.Menu;
+                _startupMenu = new StartupMenu();
+                return;
+            }
+        }
+
+        // Map mode switching (only when editor is not active)
+        if (!_editor.Active && _inputManager.MapModePressed != 0 && _inputManager.MapModePressed != _currentMapMode)
+            SetupMap(_inputManager.MapModePressed);
+
+        // Editor update
+        if (_editor.Active)
+        {
+            // Still allow camera movement + zoom
+            if (!_debugMenu.ConsumesArrowKeys)
+                _viewport.Update(seconds, _inputManager);
+            else
+                _viewport.Update(seconds);
+
+            _editor.Update(_inputManager, _viewport);
+        }
+        else
+        {
+            // Normal gameplay
+            if (!_debugMenu.ConsumesArrowKeys)
+                _viewport.Update(seconds, _inputManager);
+            else
+                _viewport.Update(seconds);
+        }
+    }
+
     protected override void Draw(GameTime gameTime)
+    {
+        switch (_state)
+        {
+            case GameState.Menu:
+                DrawMenu();
+                break;
+            case GameState.Playing:
+                DrawPlaying();
+                break;
+        }
+
+        base.Draw(gameTime);
+    }
+
+    private void DrawMenu()
+    {
+        GraphicsDevice.SetRenderTarget(null);
+        GraphicsDevice.Clear(Color.Black);
+
+        _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+        _startupMenu.Draw(_spriteBatch, _debugFont);
+        _spriteBatch.End();
+
+        // Draw mouse cursor
+        _drawer.UpdateProjection(EngineConfig.Width, EngineConfig.Height);
+        var mouse = Mouse.GetState();
+        _drawer.DrawFilledRect(mouse.X - 5, mouse.Y - 5, 10, 10, Colors.WHITE);
+    }
+
+    private void DrawPlaying()
     {
         // Draw viewport to its render target
         _viewport.Draw(GraphicsDevice, _drawer, grid: EngineConfig.ShowGrid ? 80 : null);
@@ -148,7 +250,11 @@ public class HexGame : Game
                 new Vector2(_minimap.ScreenX1, _minimap.ScreenY1), Color.White);
 
         // Debug menu overlay
-        _debugMenu.Draw(_spriteBatch, _debugFont);
+        if (!_editor.Active)
+            _debugMenu.Draw(_spriteBatch, _debugFont);
+
+        // Editor overlay
+        _editor.Draw(_spriteBatch, _debugFont, _viewport);
 
         _spriteBatch.End();
 
@@ -160,7 +266,5 @@ public class HexGame : Game
         // Draw mouse cursor
         var mouse = Mouse.GetState();
         _drawer.DrawFilledRect(mouse.X - 5, mouse.Y - 5, 10, 10, Colors.WHITE);
-
-        base.Draw(gameTime);
     }
 }

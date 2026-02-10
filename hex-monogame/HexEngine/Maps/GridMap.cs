@@ -21,9 +21,13 @@ public abstract class GridMap
     public abstract float Height { get; }
     public abstract float X1 { get; }
     public abstract float Y1 { get; }
+    public abstract int EdgeCount { get; }
+    public abstract Tile? GetNeighbor(Tile tile, int edgeIndex);
+    public abstract int GetOppositeEdge(int edgeIndex);
 
     public float X2 => X1 + Width;
     public float Y2 => Y1 + Height;
     public Vector2 Center => new Vector2(X1 + Width / 2f, Y1 + Height / 2f);
     public Rectangle Rect => new Rectangle((int)X1, (int)Y1, (int)Width, (int)Height);
+
 }

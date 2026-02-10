@@ -15,6 +15,7 @@ public static class Colors
     public static readonly Color DARK_RED = new Color(100, 0, 0);
     public static readonly Color BLUE = new Color(0, 0, 255);
     public static readonly Color GREEN = new Color(0, 255, 0);
+    public static readonly Color YELLOW = new Color(255, 255, 0);
     public static readonly Color DARK_BLUE = new Color(90, 160, 220);
     public static readonly Color WATER_COLOR = new Color(29, 79, 130);
     public static readonly Color DARK_WATER_COLOR = new Color(15, 50, 90);
