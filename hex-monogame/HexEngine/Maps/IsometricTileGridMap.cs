@@ -17,9 +17,9 @@ public class IsometricTileGridMap : GridMap
         Generate();
     }
 
-    public override float Width => TileWidth * (Cols + 2);
-    public override float Height => TileHeight * (Rows + 2);
-    public override float X1 => -TileWidth;
+    public override float Width => (Cols + Rows + 4) * TileWidth / 2f;
+    public override float Height => (Cols + Rows + 4) * TileHeight / 2f;
+    public override float X1 => (Cols - Rows - 2) * TileWidth / 2f;
     public override float Y1 => -TileHeight;
 
     private void Generate()
