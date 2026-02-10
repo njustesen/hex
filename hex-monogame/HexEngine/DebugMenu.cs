@@ -13,6 +13,8 @@ public class DebugMenu
     private readonly List<MenuItem> _items = new();
     private int _selectedIndex;
     private KeyboardState _prevKeyState;
+    private string? _statusMessage;
+    private float _statusTimer;
 
     public DebugMenu()
     {
@@ -21,6 +23,8 @@ public class DebugMenu
         _items.Add(new BoolItem("Minimap Perspective", () => EngineConfig.MinimapPerspective, v => EngineConfig.MinimapPerspective = v));
         _items.Add(new FloatItem("Move Speed", () => EngineConfig.MoveSpeed, v => EngineConfig.MoveSpeed = v, 0.1f, 0.1f, 5f));
         _items.Add(new FloatItem("Zoom Speed", () => EngineConfig.ZoomSpeed, v => EngineConfig.ZoomSpeed = v, 0.5f, 0.5f, 10f));
+        _items.Add(new FloatItem("Fog Strength", () => EngineConfig.FogStrength, v => EngineConfig.FogStrength = v, 0.05f, 0f, 1f));
+        _items.Add(new BoolItem("Show Grid", () => EngineConfig.ShowGrid, v => EngineConfig.ShowGrid = v));
         _items.Add(new ColorItem("Tile Top Color", () => EngineConfig.TileTopColor, v => EngineConfig.TileTopColor = v, 10));
     }
 
@@ -48,6 +52,23 @@ public class DebugMenu
         if (KeyPressed(keyState, Keys.Enter))
             _items[_selectedIndex].Toggle();
 
+        if (KeyPressed(keyState, Keys.S))
+        {
+            EngineConfig.Save();
+            _statusMessage = "Settings saved to config.json";
+            _statusTimer = 2f;
+        }
+
+        if (KeyPressed(keyState, Keys.L))
+        {
+            EngineConfig.Load();
+            _statusMessage = "Settings loaded from config.json";
+            _statusTimer = 2f;
+        }
+
+        if (_statusTimer > 0)
+            _statusTimer -= 1f / 60f;
+
         _prevKeyState = keyState;
     }
 
@@ -74,8 +95,14 @@ public class DebugMenu
             if (size.X > maxWidth) maxWidth = size.X;
         }
 
+        // Measure title and status lines for width
+        string titleText = "[F1] Debug Menu  (Up/Down/Left/Right/Enter | S:Save L:Load)";
+        var titleSize = font.MeasureString(titleText);
+        if (titleSize.X > maxWidth) maxWidth = titleSize.X;
+
         float bgWidth = maxWidth + padding * 2;
-        float bgHeight = _items.Count * lineHeight + padding * 2 + lineHeight;
+        float extraLines = _statusTimer > 0 ? 1 : 0;
+        float bgHeight = (_items.Count + extraLines) * lineHeight + padding * 2 + lineHeight;
 
         // Draw background using spriteBatch (1x1 pixel texture)
         var pixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
@@ -83,7 +110,7 @@ public class DebugMenu
         spriteBatch.Draw(pixel, new Rectangle((int)x, (int)y, (int)bgWidth, (int)bgHeight), Color.White);
 
         // Title
-        spriteBatch.DrawString(font, "[F1] Debug Menu  (Up/Down/Left/Right/Enter)", new Vector2(x + padding, y + padding), Color.Yellow);
+        spriteBatch.DrawString(font, titleText, new Vector2(x + padding, y + padding), Color.Yellow);
         y += lineHeight;
 
         // Items
@@ -93,6 +120,13 @@ public class DebugMenu
             var color = i == _selectedIndex ? Color.Cyan : Color.White;
             var prefix = i == _selectedIndex ? "> " : "  ";
             spriteBatch.DrawString(font, prefix + text, new Vector2(x + padding, y + padding + i * lineHeight), color);
+        }
+
+        // Status message
+        if (_statusTimer > 0 && _statusMessage != null)
+        {
+            float statusY = y + padding + _items.Count * lineHeight;
+            spriteBatch.DrawString(font, _statusMessage, new Vector2(x + padding, statusY), Color.LimeGreen);
         }
 
         pixel.Dispose();

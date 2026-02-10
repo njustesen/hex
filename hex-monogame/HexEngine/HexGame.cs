@@ -31,6 +31,7 @@ public class HexGame : Game
 
     protected override void Initialize()
     {
+        EngineConfig.Load();
         _inputManager = new InputManager();
         _debugMenu = new DebugMenu();
         SetupMap(1);
@@ -125,7 +126,7 @@ public class HexGame : Game
     protected override void Draw(GameTime gameTime)
     {
         // Draw viewport to its render target
-        _viewport.Draw(GraphicsDevice, _drawer, grid: 80);
+        _viewport.Draw(GraphicsDevice, _drawer, grid: EngineConfig.ShowGrid ? 80 : null);
 
         // Draw minimap to its render target
         _minimap.DrawMinimap(GraphicsDevice, _drawer);

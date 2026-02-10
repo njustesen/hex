@@ -179,30 +179,12 @@ public class Viewport
 
     protected virtual void DrawMap(PrimitiveDrawer drawer)
     {
-        var outlineColor = new Color(0, 80, 0);
         float depthMultiplier = EngineConfig.DepthMultiplier;
         Color topColor = EngineConfig.TileTopColor;
         bool drawDepth = depthMultiplier > 0;
-
-        // Three side colors for lighting illusion (light from upper-right)
-        Color sideColorRight = new Color(
-            (int)(topColor.R * 0.8f),
-            (int)(topColor.G * 0.8f),
-            (int)(topColor.B * 0.8f)
-        );
-        Color sideColorDown = new Color(
-            (int)(topColor.R * 0.6f),
-            (int)(topColor.G * 0.6f),
-            (int)(topColor.B * 0.6f)
-        );
-        Color sideColorLeft = new Color(
-            (int)(topColor.R * 0.45f),
-            (int)(topColor.G * 0.45f),
-            (int)(topColor.B * 0.45f)
-        );
+        float fogStrength = IsMinimap ? 0f : EngineConfig.FogStrength;
 
         // Collect all tiles and sort by center Y for correct depth overlap
-        // Works for both flat-top (staggered Y within rows) and pointy-top orientations
         var sortedTiles = new System.Collections.Generic.List<Tiles.Tile>(Map.Rows * Map.Cols);
         for (int y = 0; y < Map.Rows; y++)
             for (int x = 0; x < Map.Cols; x++)
@@ -210,16 +192,43 @@ public class Viewport
         sortedTiles.Sort((a, b) => a.Pos.Y.CompareTo(b.Pos.Y));
 
         foreach (var tile in sortedTiles)
-            DrawTile(drawer, tile, outlineColor, topColor, sideColorLeft, sideColorDown, sideColorRight, depthMultiplier, drawDepth);
+            DrawTile(drawer, tile, topColor, depthMultiplier, drawDepth, fogStrength);
     }
 
-    private void DrawTile(PrimitiveDrawer drawer, Tile tile, Color outlineColor,
-                          Color topColor, Color sideColorLeft, Color sideColorDown, Color sideColorRight,
-                          float depthMultiplier, bool drawDepth)
+    private static Color ApplyFog(Color color, float fogFactor)
+    {
+        return new Color(
+            (int)(color.R * fogFactor),
+            (int)(color.G * fogFactor),
+            (int)(color.B * fogFactor));
+    }
+
+    private static Color ApplyBrightness(Color color, float brightness)
+    {
+        return new Color(
+            (int)(color.R * brightness),
+            (int)(color.G * brightness),
+            (int)(color.B * brightness));
+    }
+
+    private void DrawTile(PrimitiveDrawer drawer, Tile tile, Color topColor,
+                          float depthMultiplier, bool drawDepth, float fogStrength)
     {
         var screenPoints = new Vector2[tile.Points.Length];
         for (int i = 0; i < tile.Points.Length; i++)
             screenPoints[i] = WorldToSurface(tile.Points[i]);
+
+        // Compute fog based on screen Y position (top = far = darker)
+        float screenCenterY = 0;
+        for (int i = 0; i < screenPoints.Length; i++)
+            screenCenterY += screenPoints[i].Y;
+        screenCenterY /= screenPoints.Length;
+        float normScreenY = Math.Clamp(screenCenterY / ScreenHeight, 0f, 1f);
+        // fogFactor: 1 at bottom (close, full brightness), (1-fogStrength) at top (far, dimmed)
+        float fogFactor = (1f - fogStrength) + fogStrength * normScreenY;
+
+        Color foggedTopColor = ApplyFog(topColor, fogFactor);
+        var outlineColor = ApplyFog(new Color(0, 80, 0), fogFactor);
 
         if (drawDepth)
         {
@@ -235,17 +244,19 @@ public class Viewport
 
             foreach (var sq in sideQuads)
             {
-                Color sideColor = sq.Side switch
-                {
-                    DepthSide.Left => sideColorLeft,
-                    DepthSide.Right => sideColorRight,
-                    _ => sideColorDown
-                };
+                // Smooth lighting: compute edge outward normal and use its X component
+                // to interpolate brightness (light from upper-right)
+                float edgeDx = sq.Quad[1].X - sq.Quad[0].X;
+                float edgeDy = sq.Quad[1].Y - sq.Quad[0].Y;
+                float len = MathF.Sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+                float nx = len > 0 ? edgeDy / len : 0;  // outward normal X (clockwise winding)
 
-                // Fill the side quad
+                // Map normal X from [-1, 1] to brightness [0.35, 0.85]
+                float brightness = 0.35f + 0.5f * (nx + 1f) / 2f;
+                Color sideColor = ApplyFog(ApplyBrightness(topColor, brightness), fogFactor);
+
                 drawer.DrawFilledQuad(sq.Quad[0], sq.Quad[1], sq.Quad[2], sq.Quad[3], sideColor);
 
-                // Outline the side edges
                 drawer.DrawLine(sq.Quad[0], sq.Quad[3], outlineColor);
                 drawer.DrawLine(sq.Quad[1], sq.Quad[2], outlineColor);
                 drawer.DrawLine(sq.Quad[2], sq.Quad[3], outlineColor);
@@ -253,18 +264,17 @@ public class Viewport
         }
 
         // Fill top hex
-        Color fillColor = topColor;
+        Color fillColor = foggedTopColor;
         if (tile == SelectedTile && tile == HoverTile)
-            fillColor = new Color(80, 160, 80);
+            fillColor = ApplyFog(new Color(80, 160, 80), fogFactor);
         else if (tile == SelectedTile)
-            fillColor = new Color(40, 120, 40);
+            fillColor = ApplyFog(new Color(40, 120, 40), fogFactor);
         else if (tile == HoverTile)
-            fillColor = new Color(0, 80, 0);
+            fillColor = ApplyFog(new Color(0, 80, 0), fogFactor);
 
         if (drawDepth || tile == SelectedTile || tile == HoverTile)
             drawer.DrawFilledPolygon(screenPoints, fillColor);
 
-        // Outline
         drawer.DrawPolygonOutline(screenPoints, outlineColor);
 
         // Unit
@@ -278,7 +288,7 @@ public class Viewport
                 WorldToSurface(new Vector2(tile.Pos.X + unitSize / 2, tile.Pos.Y + unitSize / 2)),
                 WorldToSurface(new Vector2(tile.Pos.X - unitSize / 2, tile.Pos.Y + unitSize / 2)),
             };
-            drawer.DrawFilledPolygon(unitPoints, new Color(200, 0, 0));
+            drawer.DrawFilledPolygon(unitPoints, ApplyFog(new Color(200, 0, 0), fogFactor));
         }
     }
 
