@@ -25,7 +25,7 @@ class GameEngine:
             self.screen = pygame.display.set_mode((EngineConfig.width, EngineConfig.height))
         self.done = False
         pygame.mouse.set_visible(False)
-        self.map = HexGridMap(21, 11, hex_radius=100, hex_vertical_scale=0.7)
+        self.map = HexGridMap(21, 11, hex_radius=100, hex_vertical_scale=0.7, hex_orientation="flat")
         #self.map = TileGridMap(30, 30, tile_width=80, tile_height=80)
         #self.map = IsometricTileGridMap(20, 20, tile_width=60, tile_height=40)
 

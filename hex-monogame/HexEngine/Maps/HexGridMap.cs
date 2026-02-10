@@ -30,8 +30,8 @@ public class HexGridMap : GridMap
         }
         else // pointy
         {
-            HexWidth = hexVerticalScale * MathF.Sqrt(3f) * hexRadius;
-            HexHeight = 2f * hexRadius;
+            HexWidth = MathF.Sqrt(3f) * hexRadius;
+            HexHeight = 2f * hexRadius * hexVerticalScale;
             _horizontalSpacing = HexWidth;
             _verticalSpacing = 3f / 4f * HexHeight;
         }
@@ -39,8 +39,12 @@ public class HexGridMap : GridMap
         Generate();
     }
 
-    public override float Width => _horizontalSpacing * (Cols + 1);
-    public override float Height => _verticalSpacing * (Rows + 1.5f);
+    public override float Width => HexOrientation == "flat"
+        ? _horizontalSpacing * (Cols + 1)
+        : _horizontalSpacing * (Cols + 1.5f);
+    public override float Height => HexOrientation == "flat"
+        ? _verticalSpacing * (Rows + 1.5f)
+        : _verticalSpacing * (Rows + 1.5f);
     public override float X1 => -_horizontalSpacing;
     public override float Y1 => -_verticalSpacing;
 

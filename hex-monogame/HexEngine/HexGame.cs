@@ -28,7 +28,7 @@ public class HexGame : Game
 
     protected override void Initialize()
     {
-        _map = new HexGridMap(21, 11, hexRadius: 100f, hexVerticalScale: 0.7f);
+        _map = new HexGridMap(21, 11, hexRadius: 100f, hexVerticalScale: 0.7f, hexOrientation: "flat");
         _map.Tiles[10][10].Unit = new Unit();
 
         float mapRatio = _map.Width / _map.Height;

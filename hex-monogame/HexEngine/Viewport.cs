@@ -139,41 +139,98 @@ public class Viewport
     protected virtual void DrawMap(PrimitiveDrawer drawer)
     {
         var outlineColor = new Color(0, 80, 0);
+        float depthMultiplier = EngineConfig.DepthMultiplier;
+        Color topColor = EngineConfig.TileTopColor;
+        bool drawDepth = depthMultiplier > 0 && !IsMinimap;
 
+        // Three side colors for lighting illusion (light from upper-right)
+        Color sideColorRight = new Color(
+            (int)(topColor.R * 0.8f),
+            (int)(topColor.G * 0.8f),
+            (int)(topColor.B * 0.8f)
+        );
+        Color sideColorDown = new Color(
+            (int)(topColor.R * 0.6f),
+            (int)(topColor.G * 0.6f),
+            (int)(topColor.B * 0.6f)
+        );
+        Color sideColorLeft = new Color(
+            (int)(topColor.R * 0.45f),
+            (int)(topColor.G * 0.45f),
+            (int)(topColor.B * 0.45f)
+        );
+
+        // Collect all tiles and sort by center Y for correct depth overlap
+        // Works for both flat-top (staggered Y within rows) and pointy-top orientations
+        var sortedTiles = new System.Collections.Generic.List<Tiles.Tile>(Map.Rows * Map.Cols);
         for (int y = 0; y < Map.Rows; y++)
-        {
             for (int x = 0; x < Map.Cols; x++)
+                sortedTiles.Add(Map.Tiles[y][x]);
+        sortedTiles.Sort((a, b) => a.Pos.Y.CompareTo(b.Pos.Y));
+
+        foreach (var tile in sortedTiles)
+            DrawTile(drawer, tile, outlineColor, topColor, sideColorLeft, sideColorDown, sideColorRight, depthMultiplier, drawDepth);
+    }
+
+    private void DrawTile(PrimitiveDrawer drawer, Tile tile, Color outlineColor,
+                          Color topColor, Color sideColorLeft, Color sideColorDown, Color sideColorRight,
+                          float depthMultiplier, bool drawDepth)
+    {
+        var screenPoints = new Vector2[tile.Points.Length];
+        for (int i = 0; i < tile.Points.Length; i++)
+            screenPoints[i] = WorldToSurface(tile.Points[i]);
+
+        if (drawDepth)
+        {
+            float depthPixels = DepthHelper.ComputeDepthPixels(screenPoints, depthMultiplier);
+            var sideQuads = DepthHelper.ComputeDepthSideQuads(screenPoints, depthPixels);
+
+            foreach (var sq in sideQuads)
             {
-                var tile = Map.Tiles[y][x];
-                var screenPoints = new Vector2[tile.Points.Length];
-                for (int i = 0; i < tile.Points.Length; i++)
-                    screenPoints[i] = WorldToSurface(tile.Points[i]);
-
-                // Fill colors for hover/select
-                if (tile == SelectedTile && tile == HoverTile)
-                    drawer.DrawFilledPolygon(screenPoints, new Color(80, 160, 80));
-                else if (tile == SelectedTile)
-                    drawer.DrawFilledPolygon(screenPoints, new Color(40, 120, 40));
-                else if (tile == HoverTile)
-                    drawer.DrawFilledPolygon(screenPoints, new Color(0, 80, 0));
-
-                // Outline
-                drawer.DrawPolygonOutline(screenPoints, outlineColor);
-
-                // Unit
-                if (tile.Unit != null)
+                Color sideColor = sq.Side switch
                 {
-                    float unitSize = 50f;
-                    var unitPoints = new Vector2[]
-                    {
-                        WorldToSurface(new Vector2(tile.Pos.X - unitSize / 2, tile.Pos.Y - unitSize / 2)),
-                        WorldToSurface(new Vector2(tile.Pos.X + unitSize / 2, tile.Pos.Y - unitSize / 2)),
-                        WorldToSurface(new Vector2(tile.Pos.X + unitSize / 2, tile.Pos.Y + unitSize / 2)),
-                        WorldToSurface(new Vector2(tile.Pos.X - unitSize / 2, tile.Pos.Y + unitSize / 2)),
-                    };
-                    drawer.DrawFilledPolygon(unitPoints, new Color(200, 0, 0));
-                }
+                    DepthSide.Left => sideColorLeft,
+                    DepthSide.Right => sideColorRight,
+                    _ => sideColorDown
+                };
+
+                // Fill the side quad
+                drawer.DrawFilledQuad(sq.Quad[0], sq.Quad[1], sq.Quad[2], sq.Quad[3], sideColor);
+
+                // Outline the side edges
+                drawer.DrawLine(sq.Quad[0], sq.Quad[3], outlineColor);
+                drawer.DrawLine(sq.Quad[1], sq.Quad[2], outlineColor);
+                drawer.DrawLine(sq.Quad[2], sq.Quad[3], outlineColor);
             }
+        }
+
+        // Fill top hex
+        Color fillColor = topColor;
+        if (tile == SelectedTile && tile == HoverTile)
+            fillColor = new Color(80, 160, 80);
+        else if (tile == SelectedTile)
+            fillColor = new Color(40, 120, 40);
+        else if (tile == HoverTile)
+            fillColor = new Color(0, 80, 0);
+
+        if (drawDepth || tile == SelectedTile || tile == HoverTile)
+            drawer.DrawFilledPolygon(screenPoints, fillColor);
+
+        // Outline
+        drawer.DrawPolygonOutline(screenPoints, outlineColor);
+
+        // Unit
+        if (tile.Unit != null)
+        {
+            float unitSize = 50f;
+            var unitPoints = new Vector2[]
+            {
+                WorldToSurface(new Vector2(tile.Pos.X - unitSize / 2, tile.Pos.Y - unitSize / 2)),
+                WorldToSurface(new Vector2(tile.Pos.X + unitSize / 2, tile.Pos.Y - unitSize / 2)),
+                WorldToSurface(new Vector2(tile.Pos.X + unitSize / 2, tile.Pos.Y + unitSize / 2)),
+                WorldToSurface(new Vector2(tile.Pos.X - unitSize / 2, tile.Pos.Y + unitSize / 2)),
+            };
+            drawer.DrawFilledPolygon(unitPoints, new Color(200, 0, 0));
         }
     }
 

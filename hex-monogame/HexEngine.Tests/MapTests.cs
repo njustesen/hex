@@ -164,6 +164,102 @@ public class MapTests
         Assert.Equal(map.Y1 + map.Height, map.Y2, 0.01);
     }
 
+    // --- Flat hex tiling: adjacent columns share edges ---
+
+    [Fact]
+    public void FlatHex_AdjacentColumns_ShareEdge_VS1()
+    {
+        var map = new HexGridMap(5, 5, 100f, 1f, "flat");
+        // tile[0][0] P0 (rightmost) == tile[0][1] P4 (upper-left)
+        // tile[0][0] P1 (lower-right) == tile[0][1] P3 (leftmost)
+        var left = map.Tiles[0][0];
+        var right = map.Tiles[0][1];
+        Assert.Equal(left.Points[0].X, right.Points[4].X, 0.01);
+        Assert.Equal(left.Points[0].Y, right.Points[4].Y, 0.01);
+        Assert.Equal(left.Points[1].X, right.Points[3].X, 0.01);
+        Assert.Equal(left.Points[1].Y, right.Points[3].Y, 0.01);
+    }
+
+    [Fact]
+    public void FlatHex_AdjacentColumns_ShareEdge_VS07()
+    {
+        var map = new HexGridMap(5, 5, 100f, 0.7f, "flat");
+        var left = map.Tiles[0][0];
+        var right = map.Tiles[0][1];
+        Assert.Equal(left.Points[0].X, right.Points[4].X, 0.01);
+        Assert.Equal(left.Points[0].Y, right.Points[4].Y, 0.01);
+        Assert.Equal(left.Points[1].X, right.Points[3].X, 0.01);
+        Assert.Equal(left.Points[1].Y, right.Points[3].Y, 0.01);
+    }
+
+    [Fact]
+    public void FlatHex_AdjacentRows_ShareEdge_VS07()
+    {
+        var map = new HexGridMap(5, 5, 100f, 0.7f, "flat");
+        // Same column, adjacent rows: tile[0][0] bottom edge == tile[1][0] top edge
+        // tile[0][0] P1 (lower-right) == tile[1][0] P5 (upper-right)
+        // tile[0][0] P2 (lower-left) == tile[1][0] P4 (upper-left)
+        var top = map.Tiles[0][0];
+        var bottom = map.Tiles[1][0];
+        Assert.Equal(top.Points[1].X, bottom.Points[5].X, 0.01);
+        Assert.Equal(top.Points[1].Y, bottom.Points[5].Y, 0.01);
+        Assert.Equal(top.Points[2].X, bottom.Points[4].X, 0.01);
+        Assert.Equal(top.Points[2].Y, bottom.Points[4].Y, 0.01);
+    }
+
+    // --- Pointy hex tiling: adjacent tiles share edges ---
+
+    [Fact]
+    public void PointyHex_SameRow_AdjacentColumns_ShareEdge_VS1()
+    {
+        var map = new HexGridMap(5, 5, 100f, 1f, "pointy");
+        // tile[0][0] right edge P5→P0 == tile[0][1] left edge P3→P2
+        var left = map.Tiles[0][0];
+        var right = map.Tiles[0][1];
+        Assert.Equal(left.Points[5].X, right.Points[3].X, 0.01);
+        Assert.Equal(left.Points[5].Y, right.Points[3].Y, 0.01);
+        Assert.Equal(left.Points[0].X, right.Points[2].X, 0.01);
+        Assert.Equal(left.Points[0].Y, right.Points[2].Y, 0.01);
+    }
+
+    [Fact]
+    public void PointyHex_SameRow_AdjacentColumns_ShareEdge_VS07()
+    {
+        var map = new HexGridMap(5, 5, 100f, 0.7f, "pointy");
+        var left = map.Tiles[0][0];
+        var right = map.Tiles[0][1];
+        Assert.Equal(left.Points[5].X, right.Points[3].X, 0.01);
+        Assert.Equal(left.Points[5].Y, right.Points[3].Y, 0.01);
+        Assert.Equal(left.Points[0].X, right.Points[2].X, 0.01);
+        Assert.Equal(left.Points[0].Y, right.Points[2].Y, 0.01);
+    }
+
+    [Fact]
+    public void PointyHex_AdjacentRows_ShareEdge_VS1()
+    {
+        var map = new HexGridMap(5, 5, 100f, 1f, "pointy");
+        // tile[0][0] bottom-right: P0→P1 should share with tile[1][0] top: P4→P3
+        // (row 1 is x-staggered by h_spacing/2)
+        var top = map.Tiles[0][0];
+        var bottomRight = map.Tiles[1][0];
+        Assert.Equal(top.Points[0].X, bottomRight.Points[4].X, 0.01);
+        Assert.Equal(top.Points[0].Y, bottomRight.Points[4].Y, 0.01);
+        Assert.Equal(top.Points[1].X, bottomRight.Points[3].X, 0.01);
+        Assert.Equal(top.Points[1].Y, bottomRight.Points[3].Y, 0.01);
+    }
+
+    [Fact]
+    public void PointyHex_AdjacentRows_ShareEdge_VS07()
+    {
+        var map = new HexGridMap(5, 5, 100f, 0.7f, "pointy");
+        var top = map.Tiles[0][0];
+        var bottomRight = map.Tiles[1][0];
+        Assert.Equal(top.Points[0].X, bottomRight.Points[4].X, 0.01);
+        Assert.Equal(top.Points[0].Y, bottomRight.Points[4].Y, 0.01);
+        Assert.Equal(top.Points[1].X, bottomRight.Points[3].X, 0.01);
+        Assert.Equal(top.Points[1].Y, bottomRight.Points[3].Y, 0.01);
+    }
+
     [Fact]
     public void HexGridMap_AllTilesAreHexagons()
     {

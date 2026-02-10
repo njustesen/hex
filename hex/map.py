@@ -63,19 +63,22 @@ class HexGridMap(GridMap):
             self._horizontal_spacing = 3 / 4 * self.hex_width
             self._vertical_spacing = self.hex_height
         elif hex_orientation == "pointy":
-            self.hex_width = self.hex_vertical_scale * math.sqrt(3) * self.hex_radius
-            self.hex_height = 2 * self.hex_radius
+            self.hex_width = math.sqrt(3) * self.hex_radius
+            self.hex_height = 2 * self.hex_radius * self.hex_vertical_scale
             self._horizontal_spacing = self.hex_width
             self._vertical_spacing = 3 / 4 * self.hex_height
         self.generate()
 
     @property
     def width(self):
-        return self._horizontal_spacing * (self.cols+1)
+        if self.hex_orientation == "flat":
+            return self._horizontal_spacing * (self.cols + 1)
+        else:
+            return self._horizontal_spacing * (self.cols + 1.5)
 
     @property
     def height(self):
-        return self._vertical_spacing * (self.rows+1.5)
+        return self._vertical_spacing * (self.rows + 1.5)
 
     @property
     def x1(self):

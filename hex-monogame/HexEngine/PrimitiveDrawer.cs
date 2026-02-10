@@ -25,6 +25,8 @@ public class PrimitiveDrawer
         _effect.Projection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, 0, 1);
         _effect.View = Matrix.Identity;
         _effect.World = Matrix.Identity;
+        _graphicsDevice.DepthStencilState = DepthStencilState.None;
+        _graphicsDevice.RasterizerState = RasterizerState.CullNone;
     }
 
     public void DrawFilledPolygon(Vector2[] points, Color color)
@@ -95,6 +97,23 @@ public class PrimitiveDrawer
             new Vector2(x, y + height),
         };
         DrawPolygonOutline(points, color);
+    }
+
+    public void DrawFilledQuad(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color)
+    {
+        var vertices = new VertexPositionColor[6];
+        vertices[0] = new VertexPositionColor(new Vector3(a, 0), color);
+        vertices[1] = new VertexPositionColor(new Vector3(b, 0), color);
+        vertices[2] = new VertexPositionColor(new Vector3(c, 0), color);
+        vertices[3] = new VertexPositionColor(new Vector3(a, 0), color);
+        vertices[4] = new VertexPositionColor(new Vector3(c, 0), color);
+        vertices[5] = new VertexPositionColor(new Vector3(d, 0), color);
+
+        foreach (var pass in _effect.CurrentTechnique.Passes)
+        {
+            pass.Apply();
+            _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, 2);
+        }
     }
 
     public void DrawFilledRect(float x, float y, float width, float height, Color color)
