@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="HexEngine.Tests/HexEngine.Tests.csproj" />
+  <Project Path="HexEngine/HexEngine.csproj" />
+</Solution>
