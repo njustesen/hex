@@ -141,7 +141,7 @@ public class Viewport
         var outlineColor = new Color(0, 80, 0);
         float depthMultiplier = EngineConfig.DepthMultiplier;
         Color topColor = EngineConfig.TileTopColor;
-        bool drawDepth = depthMultiplier > 0 && !IsMinimap;
+        bool drawDepth = depthMultiplier > 0;
 
         // Three side colors for lighting illusion (light from upper-right)
         Color sideColorRight = new Color(
