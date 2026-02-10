@@ -14,6 +14,7 @@ public class HexGame : Game
     private Viewport _viewport = null!;
     private Minimap _minimap = null!;
     private InputManager _inputManager = null!;
+    private int _currentMapMode = 1;
 
     public HexGame()
     {
@@ -28,8 +29,36 @@ public class HexGame : Game
 
     protected override void Initialize()
     {
-        _map = new HexGridMap(21, 11, hexRadius: 100f, hexVerticalScale: 0.7f, hexOrientation: "flat");
+        _inputManager = new InputManager();
+        SetupMap(1);
+        base.Initialize();
+    }
+
+    private void SetupMap(int mode)
+    {
+        _currentMapMode = mode;
+
+        _map = mode switch
+        {
+            2 => new TileGridMap(21, 11, tileWidth: 100f, tileHeight: 100f),
+            3 => new IsometricTileGridMap(21, 11, tileWidth: 100f, tileHeight: 100f),
+            _ => new HexGridMap(21, 11, hexRadius: 100f, hexVerticalScale: 0.7f, hexOrientation: "flat"),
+        };
+
         _map.Tiles[10][10].Unit = new Unit();
+
+        // Varied terrain elevations
+        _map.Tiles[5][10].Elevation = 1;
+        _map.Tiles[5][11].Elevation = 1;
+        _map.Tiles[4][10].Elevation = 1;
+        _map.Tiles[4][11].Elevation = 2;
+        _map.Tiles[4][12].Elevation = 1;
+        _map.Tiles[3][11].Elevation = 3;
+        _map.Tiles[3][12].Elevation = 2;
+        _map.Tiles[6][8].Elevation = 1;
+        _map.Tiles[7][7].Elevation = 1;
+        _map.Tiles[7][8].Elevation = 2;
+        _map.Tiles[8][8].Elevation = 1;
 
         float mapRatio = _map.Width / _map.Height;
         float minimapHeight = EngineConfig.Height / 5f;
@@ -49,9 +78,12 @@ public class HexGame : Game
             primaryViewport: _viewport);
 
         _viewport.Minimap = _minimap;
-        _inputManager = new InputManager();
 
-        base.Initialize();
+        if (GraphicsDevice != null)
+        {
+            _viewport.CreateRenderTarget(GraphicsDevice);
+            _minimap.CreateRenderTarget(GraphicsDevice);
+        }
     }
 
     protected override void LoadContent()
@@ -69,6 +101,10 @@ public class HexGame : Game
 
         float seconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
         _inputManager.Update();
+
+        if (_inputManager.MapModePressed != 0 && _inputManager.MapModePressed != _currentMapMode)
+            SetupMap(_inputManager.MapModePressed);
+
         _viewport.Update(seconds, _inputManager);
 
         base.Update(gameTime);

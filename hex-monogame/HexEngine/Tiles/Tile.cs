@@ -11,6 +11,7 @@ public class Tile
     public float Height { get; }
     public Vector2[] Points { get; protected set; }
     public Unit? Unit { get; set; }
+    public int Elevation { get; set; }
 
     public Tile(Vector2 pos, int x, int y, float width, float height)
     {

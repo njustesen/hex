@@ -13,6 +13,7 @@ public class InputManager
     public int ZoomDirection { get; private set; }
     public int DirectionX { get; private set; }
     public int DirectionY { get; private set; }
+    public int MapModePressed { get; private set; }
 
     public InputManager()
     {
@@ -50,6 +51,15 @@ public class InputManager
             DirectionY -= 1;
         if (keyState.IsKeyDown(Keys.Down) || keyState.IsKeyDown(Keys.S))
             DirectionY += 1;
+
+        // Map mode switching (1, 2, 3) - detect key press (not hold)
+        MapModePressed = 0;
+        if (keyState.IsKeyDown(Keys.D1) && !_prevKeyState.IsKeyDown(Keys.D1))
+            MapModePressed = 1;
+        else if (keyState.IsKeyDown(Keys.D2) && !_prevKeyState.IsKeyDown(Keys.D2))
+            MapModePressed = 2;
+        else if (keyState.IsKeyDown(Keys.D3) && !_prevKeyState.IsKeyDown(Keys.D3))
+            MapModePressed = 3;
 
         _prevKeyState = keyState;
         _prevMouseState = mouseState;

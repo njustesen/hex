@@ -183,7 +183,14 @@ public class Viewport
         if (drawDepth)
         {
             float depthPixels = DepthHelper.ComputeDepthPixels(screenPoints, depthMultiplier);
-            var sideQuads = DepthHelper.ComputeDepthSideQuads(screenPoints, depthPixels);
+            float liftPixels = depthPixels * tile.Elevation;
+            float totalDepth = depthPixels * (tile.Elevation + 1);
+
+            // Raise top surface by elevation
+            for (int i = 0; i < screenPoints.Length; i++)
+                screenPoints[i] = new Vector2(screenPoints[i].X, screenPoints[i].Y - liftPixels);
+
+            var sideQuads = DepthHelper.ComputeDepthSideQuads(screenPoints, totalDepth);
 
             foreach (var sq in sideQuads)
             {
@@ -335,8 +342,43 @@ public class Viewport
 
     public void UpdateHoverTile((int X, int Y) mousePos)
     {
-        var worldPos = SurfaceToWorld(new Vector2(mousePos.X, mousePos.Y));
-        HoverTile = Map.GetNearestTile(worldPos);
+        HoverTile = GetNearestTileAtScreen(mousePos);
+    }
+
+    private Tile? GetNearestTileAtScreen((int X, int Y) mousePos)
+    {
+        float depthMultiplier = EngineConfig.DepthMultiplier;
+        float minDist = float.MaxValue;
+        Tile? nearest = null;
+
+        for (int y = 0; y < Map.Rows; y++)
+        {
+            for (int x = 0; x < Map.Cols; x++)
+            {
+                var tile = Map.Tiles[y][x];
+                var screenCenter = WorldToSurface(tile.Pos);
+
+                if (depthMultiplier > 0 && tile.Elevation > 0)
+                {
+                    var screenPoints = new Vector2[tile.Points.Length];
+                    for (int i = 0; i < tile.Points.Length; i++)
+                        screenPoints[i] = WorldToSurface(tile.Points[i]);
+                    float depthPixels = DepthHelper.ComputeDepthPixels(screenPoints, depthMultiplier);
+                    screenCenter = new Vector2(screenCenter.X, screenCenter.Y - depthPixels * tile.Elevation);
+                }
+
+                float dx = screenCenter.X - mousePos.X;
+                float dy = screenCenter.Y - mousePos.Y;
+                float dist = dx * dx + dy * dy;
+                if (dist < minDist)
+                {
+                    minDist = dist;
+                    nearest = tile;
+                }
+            }
+        }
+
+        return nearest;
     }
 
     public bool HandleMouseDrag((int X, int Y) mousePos, (int X, int Y)? prevMousePos,
@@ -360,8 +402,7 @@ public class Viewport
     {
         if (mouseReleased && !wasDragging)
         {
-            var worldPos = SurfaceToWorld(new Vector2(mousePos.X, mousePos.Y));
-            var tile = Map.GetNearestTile(worldPos);
+            var tile = GetNearestTileAtScreen(mousePos);
             if (tile != null)
             {
                 SelectedTile = tile;
