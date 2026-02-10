@@ -93,13 +93,54 @@ public class Viewport
     public Vector2 WorldToSurface(Vector2 worldPosition)
     {
         var norm = Cam.Norm(worldPosition);
+        float pf = (IsMinimap && !EngineConfig.MinimapPerspective) ? 0f : EngineConfig.PerspectiveFactor;
+
+        if (pf > 0)
+        {
+            float normY = norm.Y;
+            // Scale: smaller at top (normY=0), full size at bottom (normY=1)
+            float scale = (1f - pf) + pf * normY;
+            // Compress X toward center
+            float centeredX = norm.X - 0.5f;
+            norm = new Vector2(0.5f + centeredX * scale, norm.Y);
+            // Compress Y: integrate scale for consistent vertical spacing
+            float denom = 1f - pf / 2f;
+            float mappedY = ((1f - pf) * normY + pf * normY * normY / 2f) / denom;
+            norm = new Vector2(norm.X, mappedY);
+        }
+
         return new Vector2(norm.X * ScreenWidth, norm.Y * ScreenHeight);
     }
 
     public Vector2 SurfaceToWorld(Vector2 surfacePosition)
     {
-        float normX = (surfacePosition.X - ScreenX1) / ScreenWidth;
-        float normY = (surfacePosition.Y - ScreenY1) / ScreenHeight;
+        float flatNormX = (surfacePosition.X - ScreenX1) / ScreenWidth;
+        float flatNormY = (surfacePosition.Y - ScreenY1) / ScreenHeight;
+        float pf = EngineConfig.PerspectiveFactor;
+
+        float normX, normY;
+        if (pf > 0)
+        {
+            // Invert Y compression: solve (1-pf)*t + pf*t²/2 = flatNormY * (1 - pf/2)
+            float target = flatNormY * (1f - pf / 2f);
+            float a = pf / 2f;
+            float b = 1f - pf;
+            float c = -target;
+            float disc = b * b - 4f * a * c;
+            normY = (-b + MathF.Sqrt(MathF.Max(0, disc))) / (2f * a);
+            normY = Math.Clamp(normY, 0f, 1f);
+
+            // Invert X: undo scale at this normY
+            float scale = (1f - pf) + pf * normY;
+            float centeredX = (flatNormX - 0.5f) / scale;
+            normX = 0.5f + centeredX;
+        }
+        else
+        {
+            normX = flatNormX;
+            normY = flatNormY;
+        }
+
         float xWorld = Cam.X1 + Cam.CameraWidth * normX;
         float yWorld = Cam.Y1 + Cam.CameraHeight * normY;
         return new Vector2(xWorld, yWorld);

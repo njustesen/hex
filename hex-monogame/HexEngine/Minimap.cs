@@ -62,26 +62,55 @@ public class Minimap : Viewport
     {
         if (PrimaryViewport == null) return;
 
-        float x1 = PrimaryViewport.Cam.X1;
-        float x2 = PrimaryViewport.Cam.X2;
-        float y1 = PrimaryViewport.Cam.Y1;
-        float y2 = PrimaryViewport.Cam.Y2;
+        float pf = EngineConfig.PerspectiveFactor;
+        float cx1 = PrimaryViewport.Cam.X1;
+        float cx2 = PrimaryViewport.Cam.X2;
+        float cy1 = PrimaryViewport.Cam.Y1;
+        float cy2 = PrimaryViewport.Cam.Y2;
 
-        var topLeft = WorldToSurface(new Vector2(x1, y1));
-        var bottomRight = WorldToSurface(new Vector2(x2, y2));
+        if (pf > 0)
+        {
+            // With perspective, the visible area is a trapezoid in world space.
+            // Invert the perspective from screen corners to get the actual world bounds.
+            var pv = PrimaryViewport;
+            var worldTL = pv.SurfaceToWorld(new Vector2(pv.ScreenX1, pv.ScreenY1));
+            var worldTR = pv.SurfaceToWorld(new Vector2(pv.ScreenX1 + pv.ScreenWidth, pv.ScreenY1));
+            var worldBL = pv.SurfaceToWorld(new Vector2(pv.ScreenX1, pv.ScreenY1 + pv.ScreenHeight));
+            var worldBR = pv.SurfaceToWorld(new Vector2(pv.ScreenX1 + pv.ScreenWidth, pv.ScreenY1 + pv.ScreenHeight));
 
-        // Clamp to minimap surface (inset by 1 to keep outline inside surface,
-        // matching pygame.draw.rect which draws outline inside the rect bounds)
-        float sx1 = Math.Max(1, topLeft.X);
-        float sy1 = Math.Max(1, topLeft.Y);
-        float sx2 = Math.Min(ScreenWidth - 1, bottomRight.X);
-        float sy2 = Math.Min(ScreenHeight - 1, bottomRight.Y);
+            // Project these world points onto the minimap surface
+            var sTL = WorldToSurface(worldTL);
+            var sTR = WorldToSurface(worldTR);
+            var sBL = WorldToSurface(worldBL);
+            var sBR = WorldToSurface(worldBR);
 
-        float w = sx2 - sx1;
-        float h = sy2 - sy1;
+            // Clamp to minimap bounds
+            var points = new Vector2[] { sTL, sTR, sBR, sBL };
+            for (int i = 0; i < points.Length; i++)
+            {
+                points[i] = new Vector2(
+                    Math.Clamp(points[i].X, 1, ScreenWidth - 1),
+                    Math.Clamp(points[i].Y, 1, ScreenHeight - 1));
+            }
 
-        if (w > 0 && h > 0)
-            drawer.DrawRectOutline(sx1, sy1, w, h, Colors.WHITE);
+            drawer.DrawPolygonOutline(points, Colors.WHITE);
+        }
+        else
+        {
+            var topLeft = WorldToSurface(new Vector2(cx1, cy1));
+            var bottomRight = WorldToSurface(new Vector2(cx2, cy2));
+
+            float sx1 = Math.Max(1, topLeft.X);
+            float sy1 = Math.Max(1, topLeft.Y);
+            float sx2 = Math.Min(ScreenWidth - 1, bottomRight.X);
+            float sy2 = Math.Min(ScreenHeight - 1, bottomRight.Y);
+
+            float w = sx2 - sx1;
+            float h = sy2 - sy1;
+
+            if (w > 0 && h > 0)
+                drawer.DrawRectOutline(sx1, sy1, w, h, Colors.WHITE);
+        }
     }
 
     public void HandleMinimapDrag((int X, int Y) mousePos, bool mouseDown)

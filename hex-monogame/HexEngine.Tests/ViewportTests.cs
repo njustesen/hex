@@ -5,6 +5,11 @@ namespace HexEngine.Tests;
 
 public class ViewportTests
 {
+    public ViewportTests()
+    {
+        EngineConfig.PerspectiveFactor = 0f;
+    }
+
     private GridMap CreateTestMap()
     {
         return new TileGridMap(10, 10, 80f, 80f);

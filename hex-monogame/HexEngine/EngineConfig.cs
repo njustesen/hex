@@ -11,4 +11,6 @@ public static class EngineConfig
     public static float ZoomSpeed { get; set; } = 4.0f;
     public static float DepthMultiplier { get; set; } = 1f / 4f;
     public static Color TileTopColor { get; set; } = new Color(40, 120, 40);
+    public static float PerspectiveFactor { get; set; } = 0.1f;
+    public static bool MinimapPerspective { get; set; } = false;
 }

@@ -14,6 +14,8 @@ public class HexGame : Game
     private Viewport _viewport = null!;
     private Minimap _minimap = null!;
     private InputManager _inputManager = null!;
+    private DebugMenu _debugMenu = null!;
+    private SpriteFont _debugFont = null!;
     private int _currentMapMode = 1;
 
     public HexGame()
@@ -30,6 +32,7 @@ public class HexGame : Game
     protected override void Initialize()
     {
         _inputManager = new InputManager();
+        _debugMenu = new DebugMenu();
         SetupMap(1);
         base.Initialize();
     }
@@ -44,6 +47,9 @@ public class HexGame : Game
             3 => new IsometricTileGridMap(21, 11, tileWidth: 100f, tileHeight: 100f),
             _ => new HexGridMap(21, 11, hexRadius: 100f, hexVerticalScale: 0.7f, hexOrientation: "flat"),
         };
+
+        if (mode != 1)
+            EngineConfig.PerspectiveFactor = 0f;
 
         _map.Tiles[10][10].Unit = new Unit();
 
@@ -90,6 +96,7 @@ public class HexGame : Game
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _drawer = new PrimitiveDrawer(GraphicsDevice);
+        _debugFont = Content.Load<SpriteFont>("DebugFont");
         _viewport.CreateRenderTarget(GraphicsDevice);
         _minimap.CreateRenderTarget(GraphicsDevice);
     }
@@ -101,11 +108,16 @@ public class HexGame : Game
 
         float seconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
         _inputManager.Update();
+        _debugMenu.Update();
 
         if (_inputManager.MapModePressed != 0 && _inputManager.MapModePressed != _currentMapMode)
             SetupMap(_inputManager.MapModePressed);
 
-        _viewport.Update(seconds, _inputManager);
+        // Only pass input to viewport when debug menu isn't consuming arrow keys
+        if (!_debugMenu.ConsumesArrowKeys)
+            _viewport.Update(seconds, _inputManager);
+        else
+            _viewport.Update(seconds);
 
         base.Update(gameTime);
     }
@@ -133,6 +145,9 @@ public class HexGame : Game
         if (_minimap.RenderTarget != null)
             _spriteBatch.Draw(_minimap.RenderTarget,
                 new Vector2(_minimap.ScreenX1, _minimap.ScreenY1), Color.White);
+
+        // Debug menu overlay
+        _debugMenu.Draw(_spriteBatch, _debugFont);
 
         _spriteBatch.End();
 
