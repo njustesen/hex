@@ -119,4 +119,22 @@ public class MapSerializerTests : IDisposable
         Assert.Equal(0.5f, loaded.HexVerticalScale);
         Assert.Equal("flat", loaded.HexOrientation);
     }
+
+    [Fact]
+    public void RoundTrip_Ramps_Preserved()
+    {
+        var map = new HexGridMap(10, 10, 100f, 0.7f, "flat");
+        map.Tiles[3][4].Elevation = 2;
+        map.Tiles[3][5].Elevation = 0;
+        map.AddRamp(map.Tiles[3][4], 0); // edge 0 from elevated tile to neighbor
+
+        var path = Path.Combine(_testDir, "test_ramps.json");
+        MapSerializer.Save(map, path);
+        var loaded = MapSerializer.Load(path);
+
+        Assert.Contains(0, loaded.Tiles[3][4].Ramps);
+        var neighbor = loaded.GetNeighbor(loaded.Tiles[3][4], 0)!;
+        int opposite = loaded.GetOppositeEdge(0);
+        Assert.Contains(opposite, neighbor.Ramps);
+    }
 }

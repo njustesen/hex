@@ -10,12 +10,13 @@ public class IsometricTileGridMap : GridMap
     public float TileHeight { get; }
 
     // Isometric neighbors: NE=0, SE=1, SW=2, NW=3
+    // In iso grid coordinates, neighbors are at cardinal offsets
     private static readonly int[,] IsoNeighborOffsets = new int[4, 2]
     {
-        { 1, -1 }, // NE
+        { 0, -1 }, // NE
         { 1, 0 },  // SE
-        { -1, 0 }, // SW (was 0,1 but in iso grid coordinates)
-        { -1, -1 }, // NW (was -1,0 but rotated)
+        { 0, 1 },  // SW
+        { -1, 0 }, // NW
     };
 
     public IsometricTileGridMap(int cols, int rows, float tileWidth, float tileHeight)
@@ -38,20 +39,8 @@ public class IsometricTileGridMap : GridMap
     {
         if (edgeIndex < 0 || edgeIndex >= 4) return null;
 
-        // Iso grid: edges map to diagonal neighbors in grid coordinates
-        // Edge 0 (top-right): x+1, y-1 (but need bounds check on y)
-        // Edge 1 (bottom-right): x+1, y
-        // Edge 2 (bottom-left): x-1, y+1
-        // Edge 3 (top-left): x-1, y
-        int nx, ny;
-        switch (edgeIndex)
-        {
-            case 0: nx = tile.X + 1; ny = tile.Y - 1; break; // top-right
-            case 1: nx = tile.X; ny = tile.Y + 1; break;     // bottom-right
-            case 2: nx = tile.X - 1; ny = tile.Y + 1; break; // bottom-left (was wrong)
-            case 3: nx = tile.X; ny = tile.Y - 1; break;     // top-left
-            default: return null;
-        }
+        int nx = tile.X + IsoNeighborOffsets[edgeIndex, 0];
+        int ny = tile.Y + IsoNeighborOffsets[edgeIndex, 1];
 
         if (nx < 0 || nx >= Cols || ny < 0 || ny >= Rows)
             return null;

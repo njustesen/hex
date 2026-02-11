@@ -30,4 +30,26 @@ public abstract class GridMap
     public Vector2 Center => new Vector2(X1 + Width / 2f, Y1 + Height / 2f);
     public Rectangle Rect => new Rectangle((int)X1, (int)Y1, (int)Width, (int)Height);
 
+    public bool AddRamp(Tile tile, int edgeIndex)
+    {
+        var neighbor = GetNeighbor(tile, edgeIndex);
+        if (neighbor == null || tile.Elevation == neighbor.Elevation)
+            return false;
+
+        tile.Ramps.Add(edgeIndex);
+        neighbor.Ramps.Add(GetOppositeEdge(edgeIndex));
+        return true;
+    }
+
+    public bool RemoveRamp(Tile tile, int edgeIndex)
+    {
+        var neighbor = GetNeighbor(tile, edgeIndex);
+        if (neighbor == null)
+            return false;
+
+        bool removed = tile.Ramps.Remove(edgeIndex);
+        if (removed)
+            neighbor.Ramps.Remove(GetOppositeEdge(edgeIndex));
+        return removed;
+    }
 }

@@ -10,6 +10,7 @@ public struct DepthSideQuad
 {
     public Vector2[] Quad;
     public DepthSide Side;
+    public int EdgeIndex;
 }
 
 public static class DepthHelper
@@ -63,7 +64,7 @@ public static class DepthHelper
                     new Vector2(topPoints[i].X, topPoints[i].Y + depthPixels)
                 };
 
-                result.Add(new DepthSideQuad { Quad = quad, Side = side });
+                result.Add(new DepthSideQuad { Quad = quad, Side = side, EdgeIndex = i });
             }
         }
 

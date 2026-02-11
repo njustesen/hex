@@ -21,6 +21,8 @@ public static class EngineConfig
     public static bool MinimapPerspective { get; set; } = false;
     public static float FogStrength { get; set; } = 0.3f;
     public static bool ShowGrid { get; set; } = false;
+    public static bool ShowInnerShapes { get; set; } = true;
+    public static float InnerShapeScale { get; set; } = 0.8f;
 
     public static void Save()
     {
@@ -39,6 +41,8 @@ public static class EngineConfig
             MinimapPerspective = MinimapPerspective,
             FogStrength = FogStrength,
             ShowGrid = ShowGrid,
+            ShowInnerShapes = ShowInnerShapes,
+            InnerShapeScale = InnerShapeScale,
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -67,6 +71,8 @@ public static class EngineConfig
             MinimapPerspective = data.MinimapPerspective;
             FogStrength = data.FogStrength;
             ShowGrid = data.ShowGrid;
+            ShowInnerShapes = data.ShowInnerShapes;
+            InnerShapeScale = data.InnerShapeScale;
         }
         catch (Exception)
         {
@@ -89,5 +95,7 @@ public static class EngineConfig
         public bool MinimapPerspective { get; set; } = false;
         public float FogStrength { get; set; } = 0.3f;
         public bool ShowGrid { get; set; } = false;
+        public bool ShowInnerShapes { get; set; } = true;
+        public float InnerShapeScale { get; set; } = 0.8f;
     }
 }

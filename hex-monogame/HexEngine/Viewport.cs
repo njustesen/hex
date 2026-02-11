@@ -28,6 +28,9 @@ public class Viewport
     public Tile? HoverTile { get; set; }
     public Tile? SelectedTile { get; set; }
     public bool Dragging { get; set; }
+    public int? HighlightedEdgeIndex { get; set; }
+    public Tile? HighlightedEdgeTile { get; set; }
+    public float InnerShapeScale { get; set; }
 
     public float Upp { get; }
     public float Ppu { get; }
@@ -192,7 +195,173 @@ public class Viewport
         sortedTiles.Sort((a, b) => a.Pos.Y.CompareTo(b.Pos.Y));
 
         foreach (var tile in sortedTiles)
+        {
             DrawTile(drawer, tile, topColor, depthMultiplier, drawDepth, fogStrength);
+
+            // Draw ramp rectangles after the lower tile
+            if (drawDepth && tile.Ramps.Count > 0)
+                DrawRampRects(drawer, tile, topColor, depthMultiplier, fogStrength);
+        }
+
+        // Draw corner triangles in a second pass (after all tiles so they aren't covered)
+        foreach (var tile in sortedTiles)
+        {
+            if (tile.Ramps.Count >= 2)
+                DrawRampCornerTriangles(drawer, tile, topColor, fogStrength);
+        }
+
+
+        // Draw highlighted edge
+        DrawHighlightedEdge(drawer);
+    }
+
+    private void DrawRampRects(PrimitiveDrawer drawer, Tile tile, Color topColor,
+                               float depthMultiplier, float fogStrength)
+    {
+        if (InnerShapeScale <= 0f || InnerShapeScale >= 1f) return;
+
+        foreach (int edge in tile.Ramps)
+        {
+            var neighbor = Map.GetNeighbor(tile, edge);
+            if (neighbor == null || neighbor.Elevation <= tile.Elevation) continue;
+
+            // This tile is the lower one — draw ramp after it
+            var lowerPts = GetTileScreenPoints(tile);
+            var raisedPts = GetTileScreenPoints(neighbor);
+            int oppEdge = Map.GetOppositeEdge(edge);
+            int ec = Map.EdgeCount;
+
+            // Lower tile: inner shape points
+            Vector2 lowerCenter = Vector2.Zero;
+            for (int i = 0; i < ec; i++) lowerCenter += lowerPts[i];
+            lowerCenter /= ec;
+
+            Vector2 lA = Vector2.Lerp(lowerCenter, lowerPts[edge], InnerShapeScale);
+            Vector2 lB = Vector2.Lerp(lowerCenter, lowerPts[(edge + 1) % ec], InnerShapeScale);
+
+            // Raised tile: outer shape points
+            Vector2 rA = raisedPts[oppEdge];
+            Vector2 rB = raisedPts[(oppEdge + 1) % ec];
+
+            // Correspondence: lA ↔ rB, lB ↔ rA
+            // Quad: lA, lB, rA, rB
+
+            // Ramp quad (bright, close to top surface)
+            Vector2 avgEdgeFrom = (lA + rB) / 2f;
+            Vector2 avgEdgeTo = (lB + rA) / 2f;
+            float rampAvgY = (lA.Y + lB.Y + rA.Y + rB.Y) / 4f;
+            Color rampColor = ComputeSurfaceColor(avgEdgeFrom, avgEdgeTo, rampAvgY, 0.95f, 0.05f, topColor, fogStrength);
+            drawer.DrawFilledQuad(lA, lB, rA, rB, rampColor);
+
+            // Closing triangles at open ends: raised outer, lower inner, lower outer
+            int prevEdge = (edge - 1 + ec) % ec;
+            int nextOppEdge = (oppEdge + 1) % ec;
+            if (!tile.Ramps.Contains(prevEdge) && !neighbor.Ramps.Contains(nextOppEdge))
+            {
+                var p = lowerPts[edge];
+                float triAvgY = (lA.Y + rB.Y + p.Y) / 3f;
+                Color endColor = ComputeSurfaceColor(rB, p, triAvgY, 0f, 1f, topColor, fogStrength);
+                drawer.DrawFilledPolygon(new[] { lA, rB, p }, endColor);
+            }
+
+            int nextEdge = (edge + 1) % ec;
+            int prevOppEdge = (oppEdge - 1 + ec) % ec;
+            if (!tile.Ramps.Contains(nextEdge) && !neighbor.Ramps.Contains(prevOppEdge))
+            {
+                var p = lowerPts[(edge + 1) % ec];
+                float triAvgY = (lB.Y + rA.Y + p.Y) / 3f;
+                Color endColor = ComputeSurfaceColor(rA, p, triAvgY, 0f, 1f, topColor, fogStrength);
+                drawer.DrawFilledPolygon(new[] { lB, rA, p }, endColor);
+            }
+        }
+    }
+
+    private void DrawRampCornerTriangles(PrimitiveDrawer drawer, Tile tile, Color topColor, float fogStrength)
+    {
+        if (InnerShapeScale <= 0f || InnerShapeScale >= 1f) return;
+
+        int ec = Map.EdgeCount;
+
+        foreach (int e1 in tile.Ramps)
+        {
+            int e2 = (e1 + 1) % ec;
+            if (!tile.Ramps.Contains(e2)) continue;
+
+            var n1 = Map.GetNeighbor(tile, e1);
+            var n2 = Map.GetNeighbor(tile, e2);
+            if (n1 == null || n2 == null) continue;
+            // Both neighbors must be on the same side (both lower or both higher)
+            bool bothLower = n1.Elevation < tile.Elevation && n2.Elevation < tile.Elevation;
+            bool bothHigher = n1.Elevation > tile.Elevation && n2.Elevation > tile.Elevation;
+            if (!bothLower && !bothHigher) continue;
+
+            // Shared corner on this tile at vertex e2
+            var tilePts = GetTileScreenPoints(tile);
+            Vector2 sharedPt;
+            if (bothLower)
+            {
+                // This tile is raised → use outer point
+                sharedPt = tilePts[e2];
+            }
+            else
+            {
+                // This tile is lower → use inner point
+                Vector2 tileCenter = Vector2.Zero;
+                for (int i = 0; i < ec; i++) tileCenter += tilePts[i];
+                tileCenter /= ec;
+                sharedPt = Vector2.Lerp(tileCenter, tilePts[e2], InnerShapeScale);
+            }
+
+            // Neighbor1: tile.point[e2] corresponds to n1.point[oppE1]
+            int oppE1 = Map.GetOppositeEdge(e1);
+            var n1Pts = GetTileScreenPoints(n1);
+            Vector2 n1Pt;
+            if (bothLower)
+            {
+                // n1 is lower → use inner point
+                Vector2 n1Center = Vector2.Zero;
+                for (int i = 0; i < ec; i++) n1Center += n1Pts[i];
+                n1Center /= ec;
+                n1Pt = Vector2.Lerp(n1Center, n1Pts[oppE1], InnerShapeScale);
+            }
+            else
+            {
+                // n1 is raised → use outer point
+                n1Pt = n1Pts[oppE1];
+            }
+
+            // Neighbor2: tile.point[e2] corresponds to n2.point[(oppE2+1)%ec]
+            int oppE2 = Map.GetOppositeEdge(e2);
+            var n2Pts = GetTileScreenPoints(n2);
+            Vector2 n2Pt;
+            if (bothLower)
+            {
+                // n2 is lower → use inner point
+                Vector2 n2Center = Vector2.Zero;
+                for (int i = 0; i < ec; i++) n2Center += n2Pts[i];
+                n2Center /= ec;
+                n2Pt = Vector2.Lerp(n2Center, n2Pts[(oppE2 + 1) % ec], InnerShapeScale);
+            }
+            else
+            {
+                // n2 is raised → use outer point
+                n2Pt = n2Pts[(oppE2 + 1) % ec];
+            }
+
+            float cornerAvgY = (sharedPt.Y + n1Pt.Y + n2Pt.Y) / 3f;
+            Color triColor = ComputeSurfaceColor(n1Pt, n2Pt, cornerAvgY, 0.9f, 0.1f, topColor, fogStrength);
+            drawer.DrawFilledPolygon(new[] { sharedPt, n1Pt, n2Pt }, triColor);
+        }
+    }
+
+    private void DrawHighlightedEdge(PrimitiveDrawer drawer)
+    {
+        if (HighlightedEdgeIndex == null || HighlightedEdgeTile == null) return;
+
+        var screenPoints = GetTileScreenPoints(HighlightedEdgeTile);
+        int edge = HighlightedEdgeIndex.Value;
+        int nextIdx = (edge + 1) % screenPoints.Length;
+        drawer.DrawLine(screenPoints[edge], screenPoints[nextIdx], Colors.YELLOW);
     }
 
     private static Color ApplyFog(Color color, float fogFactor)
@@ -211,6 +380,28 @@ public class Viewport
             (int)(color.B * brightness));
     }
 
+    /// <summary>
+    /// Compute lit surface color from a characteristic edge direction.
+    /// baseBrightness + wallScale * wallBrightness where wallBrightness is 0.35..0.85.
+    /// </summary>
+    private Color ComputeSurfaceColor(Vector2 edgeFrom, Vector2 edgeTo, float avgY,
+                                       float baseBrightness, float wallScale,
+                                       Color topColor, float fogStrength)
+    {
+        float edgeDx = edgeTo.X - edgeFrom.X;
+        float edgeDy = edgeTo.Y - edgeFrom.Y;
+        float len = MathF.Sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+        float nx = len > 0 ? edgeDy / len : 0;
+
+        float wallBrightness = 0.35f + 0.5f * (nx + 1f) / 2f;
+        float brightness = baseBrightness + wallScale * wallBrightness;
+
+        float normScreenY = Math.Clamp(avgY / ScreenHeight, 0f, 1f);
+        float fogFactor = (1f - fogStrength) + fogStrength * normScreenY;
+
+        return ApplyFog(ApplyBrightness(topColor, brightness), fogFactor);
+    }
+
     private void DrawTile(PrimitiveDrawer drawer, Tile tile, Color topColor,
                           float depthMultiplier, bool drawDepth, float fogStrength)
     {
@@ -219,15 +410,18 @@ public class Viewport
             screenPoints[i] = WorldToSurface(tile.Points[i]);
 
         // Compute fog based on screen Y position (top = far = darker)
+        int vertexCount = Map.EdgeCount;
         float screenCenterY = 0;
-        for (int i = 0; i < screenPoints.Length; i++)
+        for (int i = 0; i < vertexCount; i++)
             screenCenterY += screenPoints[i].Y;
-        screenCenterY /= screenPoints.Length;
+        screenCenterY /= vertexCount;
         float normScreenY = Math.Clamp(screenCenterY / ScreenHeight, 0f, 1f);
         // fogFactor: 1 at bottom (close, full brightness), (1-fogStrength) at top (far, dimmed)
         float fogFactor = (1f - fogStrength) + fogStrength * normScreenY;
 
-        Color foggedTopColor = ApplyFog(topColor, fogFactor);
+        // Raised tiles are slightly brighter per elevation level
+        float elevBrightness = 1f + tile.Elevation * 0.08f;
+        Color foggedTopColor = ApplyFog(ApplyBrightness(topColor, elevBrightness), fogFactor);
         var outlineColor = ApplyFog(new Color(0, 80, 0), fogFactor);
 
         if (drawDepth)
@@ -265,17 +459,46 @@ public class Viewport
 
         // Fill top hex
         Color fillColor = foggedTopColor;
-        if (tile == SelectedTile && tile == HoverTile)
-            fillColor = ApplyFog(new Color(80, 160, 80), fogFactor);
-        else if (tile == SelectedTile)
+        if (tile == SelectedTile)
             fillColor = ApplyFog(new Color(40, 120, 40), fogFactor);
-        else if (tile == HoverTile)
-            fillColor = ApplyFog(new Color(0, 80, 0), fogFactor);
 
-        if (drawDepth || tile == SelectedTile || tile == HoverTile)
+        if (drawDepth || tile == SelectedTile)
             drawer.DrawFilledPolygon(screenPoints, fillColor);
 
+        // Hover highlight: only the inner shape
+        if (tile == HoverTile && InnerShapeScale > 0f && InnerShapeScale < 1f)
+        {
+            Vector2 center = Vector2.Zero;
+            for (int i = 0; i < vertexCount; i++)
+                center += screenPoints[i];
+            center /= vertexCount;
+
+            var innerPts = new Vector2[vertexCount];
+            for (int i = 0; i < vertexCount; i++)
+                innerPts[i] = Vector2.Lerp(center, screenPoints[i], InnerShapeScale);
+
+            Color hoverColor = tile == SelectedTile
+                ? ApplyFog(new Color(80, 160, 80), fogFactor)
+                : ApplyFog(new Color(0, 80, 0), fogFactor);
+            drawer.DrawFilledPolygon(innerPts, hoverColor);
+        }
+
         drawer.DrawPolygonOutline(screenPoints, outlineColor);
+
+        // Inner shape outline
+        if (EngineConfig.ShowInnerShapes && InnerShapeScale > 0f && InnerShapeScale < 1f)
+        {
+            Vector2 center = Vector2.Zero;
+            for (int i = 0; i < vertexCount; i++)
+                center += screenPoints[i];
+            center /= vertexCount;
+
+            var innerPoints = new Vector2[vertexCount];
+            for (int i = 0; i < vertexCount; i++)
+                innerPoints[i] = Vector2.Lerp(center, screenPoints[i], InnerShapeScale);
+
+            drawer.DrawPolygonOutline(innerPoints, outlineColor);
+        }
 
         // Unit
         if (tile.Unit != null)

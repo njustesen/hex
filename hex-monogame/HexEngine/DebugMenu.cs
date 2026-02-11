@@ -9,12 +9,24 @@ namespace HexEngine;
 public class DebugMenu
 {
     public bool Visible { get; set; }
+    public bool ConsumesClick { get; private set; }
+    public float PanelBottom { get; private set; }
 
     private readonly List<MenuItem> _items = new();
-    private int _selectedIndex;
     private KeyboardState _prevKeyState;
     private string? _statusMessage;
     private float _statusTimer;
+
+    // Layout constants
+    private const float Padding = 8f;
+    private const float ButtonWidth = 28f;
+    private const float ButtonHeight = 20f;
+    private const float ButtonGap = 4f;
+    private const float RowHeight = 24f;
+
+    // Cached layout
+    private float _menuX, _menuY, _menuWidth, _menuHeight;
+    private readonly List<RowLayout> _rowLayouts = new();
 
     public DebugMenu()
     {
@@ -25,14 +37,17 @@ public class DebugMenu
         _items.Add(new FloatItem("Zoom Speed", () => EngineConfig.ZoomSpeed, v => EngineConfig.ZoomSpeed = v, 0.5f, 0.5f, 10f));
         _items.Add(new FloatItem("Fog Strength", () => EngineConfig.FogStrength, v => EngineConfig.FogStrength = v, 0.05f, 0f, 1f));
         _items.Add(new BoolItem("Show Grid", () => EngineConfig.ShowGrid, v => EngineConfig.ShowGrid = v));
-        _items.Add(new ColorItem("Tile Top Color", () => EngineConfig.TileTopColor, v => EngineConfig.TileTopColor = v, 10));
+        _items.Add(new BoolItem("Inner Shapes", () => EngineConfig.ShowInnerShapes, v => EngineConfig.ShowInnerShapes = v));
+        _items.Add(new FloatItem("Inner Scale", () => EngineConfig.InnerShapeScale, v => EngineConfig.InnerShapeScale = v, 0.1f, 0f, 1f));
+        _items.Add(new ColorItem("Tile Color", () => EngineConfig.TileTopColor, v => EngineConfig.TileTopColor = v, 10));
     }
 
-    public void Update()
+    public void Update(InputManager input)
     {
         var keyState = Keyboard.GetState();
+        ConsumesClick = false;
 
-        if (KeyPressed(keyState, Keys.F1))
+        if (keyState.IsKeyDown(Keys.F1) && !_prevKeyState.IsKeyDown(Keys.F1))
             Visible = !Visible;
 
         if (!Visible)
@@ -41,29 +56,59 @@ public class DebugMenu
             return;
         }
 
-        if (KeyPressed(keyState, Keys.Up))
-            _selectedIndex = (_selectedIndex - 1 + _items.Count) % _items.Count;
-        if (KeyPressed(keyState, Keys.Down))
-            _selectedIndex = (_selectedIndex + 1) % _items.Count;
-        if (KeyPressed(keyState, Keys.Left))
-            _items[_selectedIndex].Decrease();
-        if (KeyPressed(keyState, Keys.Right))
-            _items[_selectedIndex].Increase();
-        if (KeyPressed(keyState, Keys.Enter))
-            _items[_selectedIndex].Toggle();
-
-        if (KeyPressed(keyState, Keys.S))
+        // Handle mouse clicks on buttons
+        if (input.MouseReleased)
         {
-            EngineConfig.Save();
-            _statusMessage = "Settings saved to config.json";
-            _statusTimer = 2f;
+            float mx = input.MousePos.X;
+            float my = input.MousePos.Y;
+
+            if (mx >= _menuX && mx <= _menuX + _menuWidth &&
+                my >= _menuY && my <= _menuY + _menuHeight)
+            {
+                ConsumesClick = true;
+
+                foreach (var row in _rowLayouts)
+                {
+                    if (row.MinusBtn.HasValue && InRect(mx, my, row.MinusBtn.Value))
+                    {
+                        row.Item.Decrease();
+                        break;
+                    }
+                    if (row.PlusBtn.HasValue && InRect(mx, my, row.PlusBtn.Value))
+                    {
+                        row.Item.Increase();
+                        break;
+                    }
+                    if (row.ToggleBtn.HasValue && InRect(mx, my, row.ToggleBtn.Value))
+                    {
+                        row.Item.Toggle();
+                        break;
+                    }
+                }
+
+                if (_saveBtn.HasValue && InRect(mx, my, _saveBtn.Value))
+                {
+                    EngineConfig.Save();
+                    _statusMessage = "Saved";
+                    _statusTimer = 2f;
+                }
+                if (_loadBtn.HasValue && InRect(mx, my, _loadBtn.Value))
+                {
+                    EngineConfig.Load();
+                    _statusMessage = "Loaded";
+                    _statusTimer = 2f;
+                }
+            }
         }
 
-        if (KeyPressed(keyState, Keys.L))
+        // Check hover for consuming clicks (prevent click-through)
+        if (input.MouseDown)
         {
-            EngineConfig.Load();
-            _statusMessage = "Settings loaded from config.json";
-            _statusTimer = 2f;
+            float mx = input.MousePos.X;
+            float my = input.MousePos.Y;
+            if (mx >= _menuX && mx <= _menuX + _menuWidth &&
+                my >= _menuY && my <= _menuY + _menuHeight)
+                ConsumesClick = true;
         }
 
         if (_statusTimer > 0)
@@ -72,69 +117,150 @@ public class DebugMenu
         _prevKeyState = keyState;
     }
 
-    public bool ConsumesArrowKeys => Visible;
+    private Rectangle? _saveBtn;
+    private Rectangle? _loadBtn;
 
-    private bool KeyPressed(KeyboardState current, Keys key)
-        => current.IsKeyDown(key) && !_prevKeyState.IsKeyDown(key);
+    private static bool InRect(float x, float y, Rectangle r)
+        => x >= r.X && x <= r.X + r.Width && y >= r.Y && y <= r.Y + r.Height;
 
-    public void Draw(SpriteBatch spriteBatch, SpriteFont font)
+    public void Draw(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, float startY)
     {
+        PanelBottom = startY;
         if (!Visible) return;
 
         float x = 10;
-        float y = 10;
-        float lineHeight = font.LineSpacing + 4;
-        float padding = 8;
+        float y = startY;
+        float lineHeight = RowHeight;
+
+        // Compute layout
+        _rowLayouts.Clear();
+
+        float maxLabelWidth = 0;
+        foreach (var item in _items)
+        {
+            float w = font.MeasureString(item.DisplayLabel()).X;
+            if (w > maxLabelWidth) maxLabelWidth = w;
+        }
+
+        float maxValueWidth = 0;
+        foreach (var item in _items)
+        {
+            float w = font.MeasureString(item.DisplayValue()).X;
+            if (w > maxValueWidth) maxValueWidth = w;
+        }
+
+        float buttonsWidth = ButtonWidth * 2 + ButtonGap;
+        float totalContentWidth = maxLabelWidth + ButtonGap + buttonsWidth + ButtonGap + maxValueWidth;
+
+        float saveLoadWidth = font.MeasureString("Save").X + font.MeasureString("Load").X + ButtonGap * 3 + Padding * 2;
+        float titleWidth = font.MeasureString("Settings").X;
+        float menuContentWidth = Math.Max(totalContentWidth, Math.Max(saveLoadWidth, titleWidth));
+
+        float menuWidth = menuContentWidth + Padding * 2;
+        int totalRows = 1 + _items.Count + 1;
+        if (_statusTimer > 0) totalRows++;
+        float menuHeight = totalRows * lineHeight + Padding * 2;
+
+        _menuX = x;
+        _menuY = y;
+        _menuWidth = menuWidth;
+        _menuHeight = menuHeight;
+        PanelBottom = y + menuHeight;
 
         // Background
-        float maxWidth = 0;
-        for (int i = 0; i < _items.Count; i++)
-        {
-            var text = FormatItem(i);
-            var size = font.MeasureString(text);
-            if (size.X > maxWidth) maxWidth = size.X;
-        }
+        spriteBatch.Draw(pixel, new Rectangle((int)x, (int)y, (int)menuWidth, (int)menuHeight), new Color(0, 0, 0, 200));
 
-        // Measure title and status lines for width
-        string titleText = "[F1] Debug Menu  (Up/Down/Left/Right/Enter | S:Save L:Load)";
-        var titleSize = font.MeasureString(titleText);
-        if (titleSize.X > maxWidth) maxWidth = titleSize.X;
-
-        float bgWidth = maxWidth + padding * 2;
-        float extraLines = _statusTimer > 0 ? 1 : 0;
-        float bgHeight = (_items.Count + extraLines) * lineHeight + padding * 2 + lineHeight;
-
-        // Draw background using spriteBatch (1x1 pixel texture)
-        var pixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
-        pixel.SetData(new[] { new Color(0, 0, 0, 180) });
-        spriteBatch.Draw(pixel, new Rectangle((int)x, (int)y, (int)bgWidth, (int)bgHeight), Color.White);
+        float cy = y + Padding;
 
         // Title
-        spriteBatch.DrawString(font, titleText, new Vector2(x + padding, y + padding), Color.Yellow);
-        y += lineHeight;
+        spriteBatch.DrawString(font, "Settings", new Vector2(x + Padding, cy), Color.Yellow);
+        cy += lineHeight;
 
         // Items
+        float btnAreaX = x + Padding + maxLabelWidth + ButtonGap;
+        float valueX = btnAreaX + ButtonWidth + ButtonGap;
+        float plusX = valueX + maxValueWidth + ButtonGap;
+
         for (int i = 0; i < _items.Count; i++)
         {
-            var text = FormatItem(i);
-            var color = i == _selectedIndex ? Color.Cyan : Color.White;
-            var prefix = i == _selectedIndex ? "> " : "  ";
-            spriteBatch.DrawString(font, prefix + text, new Vector2(x + padding, y + padding + i * lineHeight), color);
+            var item = _items[i];
+            float rowY = cy + i * lineHeight;
+
+            spriteBatch.DrawString(font, item.DisplayLabel(), new Vector2(x + Padding, rowY), Color.White);
+
+            var row = new RowLayout { Item = item };
+
+            if (item is BoolItem)
+            {
+                var toggleRect = new Rectangle((int)btnAreaX, (int)rowY, (int)(ButtonWidth * 2 + ButtonGap + maxValueWidth), (int)ButtonHeight);
+                row.ToggleBtn = toggleRect;
+                DrawButton(spriteBatch, pixel, font, toggleRect, item.DisplayValue(),
+                    item.DisplayValue() == "ON" ? new Color(40, 120, 40, 200) : new Color(80, 40, 40, 200));
+            }
+            else if (item is ColorItem colorItem)
+            {
+                var minusRect = new Rectangle((int)btnAreaX, (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
+                var plusRect = new Rectangle((int)plusX, (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
+                row.MinusBtn = minusRect;
+                row.PlusBtn = plusRect;
+
+                DrawButton(spriteBatch, pixel, font, minusRect, "-", new Color(60, 60, 60, 200));
+                spriteBatch.DrawString(font, item.DisplayValue(), new Vector2(valueX, rowY), Color.White);
+                DrawButton(spriteBatch, pixel, font, plusRect, "+", new Color(60, 60, 60, 200));
+
+                var toggleRect = new Rectangle((int)(plusX + ButtonWidth + ButtonGap), (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
+                row.ToggleBtn = toggleRect;
+                DrawButton(spriteBatch, pixel, font, toggleRect, colorItem.ComponentName(), new Color(80, 60, 40, 200));
+            }
+            else
+            {
+                var minusRect = new Rectangle((int)btnAreaX, (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
+                var plusRect = new Rectangle((int)plusX, (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
+                row.MinusBtn = minusRect;
+                row.PlusBtn = plusRect;
+
+                DrawButton(spriteBatch, pixel, font, minusRect, "-", new Color(60, 60, 60, 200));
+                spriteBatch.DrawString(font, item.DisplayValue(), new Vector2(valueX, rowY), Color.White);
+                DrawButton(spriteBatch, pixel, font, plusRect, "+", new Color(60, 60, 60, 200));
+            }
+
+            _rowLayouts.Add(row);
         }
 
-        // Status message
+        // Save / Load buttons
+        float btnRowY = cy + _items.Count * lineHeight;
+        float saveBtnW = font.MeasureString("Save").X + Padding;
+        float loadBtnW = font.MeasureString("Load").X + Padding;
+        _saveBtn = new Rectangle((int)(x + Padding), (int)btnRowY, (int)saveBtnW, (int)ButtonHeight);
+        _loadBtn = new Rectangle((int)(x + Padding + saveBtnW + ButtonGap), (int)btnRowY, (int)loadBtnW, (int)ButtonHeight);
+        DrawButton(spriteBatch, pixel, font, _saveBtn.Value, "Save", new Color(40, 80, 40, 200));
+        DrawButton(spriteBatch, pixel, font, _loadBtn.Value, "Load", new Color(40, 40, 80, 200));
+
+        // Status
         if (_statusTimer > 0 && _statusMessage != null)
         {
-            float statusY = y + padding + _items.Count * lineHeight;
-            spriteBatch.DrawString(font, _statusMessage, new Vector2(x + padding, statusY), Color.LimeGreen);
+            float statusY = btnRowY + lineHeight;
+            spriteBatch.DrawString(font, _statusMessage, new Vector2(x + Padding, statusY), Color.LimeGreen);
         }
-
-        pixel.Dispose();
     }
 
-    private string FormatItem(int index)
+    private static void DrawButton(SpriteBatch spriteBatch, Texture2D pixel, SpriteFont font,
+                                    Rectangle rect, string text, Color bgColor)
     {
-        return _items[index].Display();
+        spriteBatch.Draw(pixel, rect, bgColor);
+        var textSize = font.MeasureString(text);
+        float tx = rect.X + (rect.Width - textSize.X) / 2f;
+        float ty = rect.Y + (rect.Height - textSize.Y) / 2f;
+        spriteBatch.DrawString(font, text, new Vector2(tx, ty), Color.White);
+    }
+
+    // --- Layout info ---
+    private class RowLayout
+    {
+        public MenuItem Item = null!;
+        public Rectangle? MinusBtn;
+        public Rectangle? PlusBtn;
+        public Rectangle? ToggleBtn;
     }
 
     // --- Menu item types ---
@@ -143,7 +269,8 @@ public class DebugMenu
     {
         public string Name { get; }
         protected MenuItem(string name) => Name = name;
-        public abstract string Display();
+        public string DisplayLabel() => Name;
+        public abstract string DisplayValue();
         public virtual void Increase() { }
         public virtual void Decrease() { }
         public virtual void Toggle() { }
@@ -161,7 +288,7 @@ public class DebugMenu
             _get = get; _set = set; _step = step; _min = min; _max = max;
         }
 
-        public override string Display() => $"{Name}: {_get():F2}  [{_min:F1} .. {_max:F1}]";
+        public override string DisplayValue() => $"{_get():F2}";
         public override void Increase() => _set(Math.Min(_max, _get() + _step));
         public override void Decrease() => _set(Math.Max(_min, _get() - _step));
     }
@@ -176,7 +303,7 @@ public class DebugMenu
             _get = get; _set = set;
         }
 
-        public override string Display() => $"{Name}: {(_get() ? "ON" : "OFF")}";
+        public override string DisplayValue() => _get() ? "ON" : "OFF";
         public override void Toggle() => _set(!_get());
         public override void Increase() => Toggle();
         public override void Decrease() => Toggle();
@@ -194,11 +321,12 @@ public class DebugMenu
             _get = get; _set = set; _step = step;
         }
 
-        public override string Display()
+        public string ComponentName() => _component switch { 0 => "R", 1 => "G", _ => "B" };
+
+        public override string DisplayValue()
         {
             var c = _get();
-            string comp = _component switch { 0 => "R", 1 => "G", _ => "B" };
-            return $"{Name}: ({c.R},{c.G},{c.B})  [Enter: {comp}]";
+            return $"({c.R},{c.G},{c.B})";
         }
 
         public override void Toggle()

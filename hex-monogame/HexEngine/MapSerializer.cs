@@ -49,9 +49,11 @@ public static class MapSerializer
             for (int x = 0; x < map.Cols; x++)
             {
                 var tile = map.Tiles[y][x];
-                if (tile.Elevation > 0)
+                if (tile.Elevation > 0 || tile.Ramps.Count > 0)
                 {
                     var td = new TileData { X = x, Y = y, Elevation = tile.Elevation };
+                    if (tile.Ramps.Count > 0)
+                        td.Ramps = tile.Ramps.OrderBy(r => r).ToList();
                     data.Tiles.Add(td);
                 }
             }
@@ -82,13 +84,21 @@ public static class MapSerializer
 
         if (data.Tiles != null)
         {
+            // First pass: set elevations
             foreach (var td in data.Tiles)
             {
                 if (td.Y >= 0 && td.Y < map.Rows && td.X >= 0 && td.X < map.Cols)
-                {
-                    var tile = map.Tiles[td.Y][td.X];
-                    tile.Elevation = td.Elevation;
-                }
+                    map.Tiles[td.Y][td.X].Elevation = td.Elevation;
+            }
+
+            // Second pass: add ramps (elevations must be set first)
+            foreach (var td in data.Tiles)
+            {
+                if (td.Ramps == null || td.Y < 0 || td.Y >= map.Rows || td.X < 0 || td.X >= map.Cols)
+                    continue;
+                var tile = map.Tiles[td.Y][td.X];
+                foreach (int edge in td.Ramps)
+                    map.AddRamp(tile, edge);
             }
         }
 
@@ -156,5 +166,7 @@ public static class MapSerializer
         [JsonPropertyName("elevation")]
         public int Elevation { get; set; }
 
+        [JsonPropertyName("ramps")]
+        public List<int>? Ramps { get; set; }
     }
 }
