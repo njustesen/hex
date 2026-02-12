@@ -9,35 +9,25 @@ namespace HexEngine;
 
 public enum EditorTool { Elevation, Ramp }
 
-public class MapEditor
+public class MapEditor : Panel
 {
-    public bool Active { get; set; }
-    public bool ConsumesClick { get; private set; }
     public EditorTool CurrentTool { get; private set; } = EditorTool.Elevation;
-    public int? HoveredEdge { get; private set; }
-    public Tile? HoveredEdgeTile { get; private set; }
-    public float PanelBottom { get; private set; }
 
     private string? _lastSavePath;
     private string? _statusMessage;
     private float _statusTimer;
-
-    // Layout constants
-    private const float Padding = 8f;
-    private const float ButtonHeight = 20f;
-    private const float ButtonGap = 4f;
-    private const float RowHeight = 24f;
-    private const float SmallBtnWidth = 28f;
 
     // Cached panel layout
     private float _panelX, _panelY, _panelWidth, _panelHeight;
     private Rectangle? _elevBtn, _rampBtn;
     private Rectangle? _saveBtn;
 
-    public void Update(InputManager input, Viewport viewport, bool externalClickConsumed)
+    public void Update(InputManager input, Viewport viewport, InteractionState state, bool externalClickConsumed)
     {
         ConsumesClick = false;
-        if (!Active) return;
+        state.HighlightedEdgeIndex = null;
+        state.HighlightedEdgeTile = null;
+        if (!Visible) return;
 
         // Keyboard shortcuts for tool switching
         if (input.EPressed)
@@ -51,10 +41,8 @@ public class MapEditor
             float mx = input.MousePos.X;
             float my = input.MousePos.Y;
 
-            if (mx >= _panelX && mx <= _panelX + _panelWidth &&
-                my >= _panelY && my <= _panelY + _panelHeight)
+            if (ConsumeIfHit(mx, my, _panelX, _panelY, _panelWidth, _panelHeight))
             {
-                ConsumesClick = true;
 
                 if (_elevBtn.HasValue && InRect(mx, my, _elevBtn.Value))
                     CurrentTool = EditorTool.Elevation;
@@ -67,20 +55,14 @@ public class MapEditor
 
         // Click-through prevention
         if (input.MouseDown && !externalClickConsumed)
-        {
-            float mx = input.MousePos.X;
-            float my = input.MousePos.Y;
-            if (mx >= _panelX && mx <= _panelX + _panelWidth &&
-                my >= _panelY && my <= _panelY + _panelHeight)
-                ConsumesClick = true;
-        }
+            ConsumeIfHit(input.MousePos.X, input.MousePos.Y, _panelX, _panelY, _panelWidth, _panelHeight);
 
         // Tile interaction (only if no click consumed)
         bool clickConsumed = externalClickConsumed || ConsumesClick;
         if (CurrentTool == EditorTool.Elevation)
-            UpdateElevationTool(input, viewport, clickConsumed);
+            DoElevation(input, viewport, state, clickConsumed);
         else
-            UpdateRampTool(input, viewport, clickConsumed);
+            DoRamp(input, viewport, state, clickConsumed);
 
         // Ctrl+S save shortcut
         if (input.CtrlS)
@@ -99,24 +81,21 @@ public class MapEditor
         _statusTimer = 2f;
     }
 
-    private void UpdateElevationTool(InputManager input, Viewport viewport, bool clickConsumed)
+    private void DoElevation(InputManager input, Viewport viewport, InteractionState state, bool clickConsumed)
     {
-        HoveredEdge = null;
-        HoveredEdgeTile = null;
-
-        if (viewport.HoverTile == null) return;
+        if (state.HoverTile == null) return;
         if (clickConsumed) return;
 
         if (input.MouseReleased)
         {
-            var tile = viewport.HoverTile;
+            var tile = state.HoverTile;
             tile.Elevation++;
             RemoveInvalidRamps(tile, viewport.Map);
         }
 
-        if (input.RightMouseReleased && viewport.HoverTile.Elevation > 0)
+        if (input.RightMouseReleased && state.HoverTile.Elevation > 0)
         {
-            var tile = viewport.HoverTile;
+            var tile = state.HoverTile;
             tile.Elevation--;
             RemoveInvalidRamps(tile, viewport.Map);
         }
@@ -144,14 +123,11 @@ public class MapEditor
         }
     }
 
-    private void UpdateRampTool(InputManager input, Viewport viewport, bool clickConsumed)
+    private void DoRamp(InputManager input, Viewport viewport, InteractionState state, bool clickConsumed)
     {
-        HoveredEdge = null;
-        HoveredEdgeTile = null;
+        if (state.HoverTile == null) return;
 
-        if (viewport.HoverTile == null) return;
-
-        var tile = viewport.HoverTile;
+        var tile = state.HoverTile;
         var screenPoints = viewport.GetTileScreenPoints(tile);
         var mousePos = new Vector2(input.MousePos.X - viewport.ScreenX1, input.MousePos.Y - viewport.ScreenY1);
 
@@ -171,8 +147,8 @@ public class MapEditor
             }
         }
 
-        HoveredEdge = bestEdge;
-        HoveredEdgeTile = tile;
+        state.HighlightedEdgeIndex = bestEdge;
+        state.HighlightedEdgeTile = tile;
 
         if (clickConsumed) return;
 
@@ -187,13 +163,10 @@ public class MapEditor
 
     public void SetLastSavePath(string? path) => _lastSavePath = path;
 
-    private static bool InRect(float x, float y, Rectangle r)
-        => x >= r.X && x <= r.X + r.Width && y >= r.Y && y <= r.Y + r.Height;
-
-    public void Draw(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, Viewport viewport, float startY)
+    public void Draw(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, InteractionState state, float startY)
     {
         PanelBottom = startY;
-        if (!Active) return;
+        if (!Visible) return;
 
         float x = 10;
         float y = startY;
@@ -203,8 +176,8 @@ public class MapEditor
         float rampBtnW = font.MeasureString("Ramp").X + Padding;
 
         // Row 2: Tile info
-        string tileInfo = viewport.HoverTile != null
-            ? $"Tile [{viewport.HoverTile.X},{viewport.HoverTile.Y}] Elev: {viewport.HoverTile.Elevation}"
+        string tileInfo = state.HoverTile != null
+            ? $"Tile [{state.HoverTile.X},{state.HoverTile.Y}] Elev: {state.HoverTile.Elevation}"
             : "Tile: -";
 
         // Row 3: Save
@@ -216,7 +189,7 @@ public class MapEditor
             : "LMB: Toggle Ramp";
 
         // Compute panel width
-        float maxWidth = Math.Max(elevBtnW + ButtonGap + rampBtnW,
+        float maxWidth = Math.Max(elevBtnW + BtnGap + rampBtnW,
                          Math.Max(font.MeasureString(tileInfo).X,
                          Math.Max(saveBtnW, font.MeasureString(helpText).X)));
 
@@ -231,17 +204,16 @@ public class MapEditor
         _panelHeight = panelHeight;
         PanelBottom = y + panelHeight;
 
-        // Background
-        spriteBatch.Draw(pixel, new Rectangle((int)x, (int)y, (int)panelWidth, (int)panelHeight), new Color(0, 0, 0, 200));
+        DrawBg(spriteBatch, pixel, x, y, panelWidth, panelHeight);
 
         float cy = y + Padding;
 
         // Row 1: Tool buttons
-        _elevBtn = new Rectangle((int)(x + Padding), (int)cy, (int)elevBtnW, (int)ButtonHeight);
-        _rampBtn = new Rectangle((int)(x + Padding + elevBtnW + ButtonGap), (int)cy, (int)rampBtnW, (int)ButtonHeight);
-        DrawButton(spriteBatch, pixel, font, _elevBtn.Value, "Elev",
+        _elevBtn = new Rectangle((int)(x + Padding), (int)cy, (int)elevBtnW, (int)BtnHeight);
+        _rampBtn = new Rectangle((int)(x + Padding + elevBtnW + BtnGap), (int)cy, (int)rampBtnW, (int)BtnHeight);
+        DrawBtn(spriteBatch, pixel, font, _elevBtn.Value, "Elev",
             CurrentTool == EditorTool.Elevation ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
-        DrawButton(spriteBatch, pixel, font, _rampBtn.Value, "Ramp",
+        DrawBtn(spriteBatch, pixel, font, _rampBtn.Value, "Ramp",
             CurrentTool == EditorTool.Ramp ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
         cy += RowHeight;
 
@@ -250,8 +222,8 @@ public class MapEditor
         cy += RowHeight;
 
         // Row 3: Save
-        _saveBtn = new Rectangle((int)(x + Padding), (int)cy, (int)saveBtnW, (int)ButtonHeight);
-        DrawButton(spriteBatch, pixel, font, _saveBtn.Value, "Save", new Color(40, 80, 40, 200));
+        _saveBtn = new Rectangle((int)(x + Padding), (int)cy, (int)saveBtnW, (int)BtnHeight);
+        DrawBtn(spriteBatch, pixel, font, _saveBtn.Value, "Save", new Color(40, 80, 40, 200));
         cy += RowHeight;
 
         // Row 5: Status (if any)
@@ -265,13 +237,4 @@ public class MapEditor
         spriteBatch.DrawString(font, helpText, new Vector2(x + Padding, cy), Color.Gray);
     }
 
-    private static void DrawButton(SpriteBatch spriteBatch, Texture2D pixel, SpriteFont font,
-                                    Rectangle rect, string text, Color bgColor)
-    {
-        spriteBatch.Draw(pixel, rect, bgColor);
-        var textSize = font.MeasureString(text);
-        float tx = rect.X + (rect.Width - textSize.X) / 2f;
-        float ty = rect.Y + (rect.Height - textSize.Y) / 2f;
-        spriteBatch.DrawString(font, text, new Vector2(tx, ty), Color.White);
-    }
 }

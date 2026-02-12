@@ -6,23 +6,14 @@ using Microsoft.Xna.Framework.Input;
 
 namespace HexEngine;
 
-public class DebugMenu
+public class DebugMenu : Panel
 {
-    public bool Visible { get; set; }
-    public bool ConsumesClick { get; private set; }
-    public float PanelBottom { get; private set; }
-
     private readonly List<MenuItem> _items = new();
     private KeyboardState _prevKeyState;
     private string? _statusMessage;
     private float _statusTimer;
 
-    // Layout constants
-    private const float Padding = 8f;
     private const float ButtonWidth = 28f;
-    private const float ButtonHeight = 20f;
-    private const float ButtonGap = 4f;
-    private const float RowHeight = 24f;
 
     // Cached layout
     private float _menuX, _menuY, _menuWidth, _menuHeight;
@@ -62,10 +53,8 @@ public class DebugMenu
             float mx = input.MousePos.X;
             float my = input.MousePos.Y;
 
-            if (mx >= _menuX && mx <= _menuX + _menuWidth &&
-                my >= _menuY && my <= _menuY + _menuHeight)
+            if (ConsumeIfHit(mx, my, _menuX, _menuY, _menuWidth, _menuHeight))
             {
-                ConsumesClick = true;
 
                 foreach (var row in _rowLayouts)
                 {
@@ -103,13 +92,7 @@ public class DebugMenu
 
         // Check hover for consuming clicks (prevent click-through)
         if (input.MouseDown)
-        {
-            float mx = input.MousePos.X;
-            float my = input.MousePos.Y;
-            if (mx >= _menuX && mx <= _menuX + _menuWidth &&
-                my >= _menuY && my <= _menuY + _menuHeight)
-                ConsumesClick = true;
-        }
+            ConsumeIfHit(input.MousePos.X, input.MousePos.Y, _menuX, _menuY, _menuWidth, _menuHeight);
 
         if (_statusTimer > 0)
             _statusTimer -= 1f / 60f;
@@ -119,9 +102,6 @@ public class DebugMenu
 
     private Rectangle? _saveBtn;
     private Rectangle? _loadBtn;
-
-    private static bool InRect(float x, float y, Rectangle r)
-        => x >= r.X && x <= r.X + r.Width && y >= r.Y && y <= r.Y + r.Height;
 
     public void Draw(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, float startY)
     {
@@ -149,10 +129,10 @@ public class DebugMenu
             if (w > maxValueWidth) maxValueWidth = w;
         }
 
-        float buttonsWidth = ButtonWidth * 2 + ButtonGap;
-        float totalContentWidth = maxLabelWidth + ButtonGap + buttonsWidth + ButtonGap + maxValueWidth;
+        float buttonsWidth = ButtonWidth * 2 + BtnGap;
+        float totalContentWidth = maxLabelWidth + BtnGap + buttonsWidth + BtnGap + maxValueWidth;
 
-        float saveLoadWidth = font.MeasureString("Save").X + font.MeasureString("Load").X + ButtonGap * 3 + Padding * 2;
+        float saveLoadWidth = font.MeasureString("Save").X + font.MeasureString("Load").X + BtnGap * 3 + Padding * 2;
         float titleWidth = font.MeasureString("Settings").X;
         float menuContentWidth = Math.Max(totalContentWidth, Math.Max(saveLoadWidth, titleWidth));
 
@@ -167,8 +147,7 @@ public class DebugMenu
         _menuHeight = menuHeight;
         PanelBottom = y + menuHeight;
 
-        // Background
-        spriteBatch.Draw(pixel, new Rectangle((int)x, (int)y, (int)menuWidth, (int)menuHeight), new Color(0, 0, 0, 200));
+        DrawBg(spriteBatch, pixel, x, y, menuWidth, menuHeight);
 
         float cy = y + Padding;
 
@@ -177,9 +156,9 @@ public class DebugMenu
         cy += lineHeight;
 
         // Items
-        float btnAreaX = x + Padding + maxLabelWidth + ButtonGap;
-        float valueX = btnAreaX + ButtonWidth + ButtonGap;
-        float plusX = valueX + maxValueWidth + ButtonGap;
+        float btnAreaX = x + Padding + maxLabelWidth + BtnGap;
+        float valueX = btnAreaX + ButtonWidth + BtnGap;
+        float plusX = valueX + maxValueWidth + BtnGap;
 
         for (int i = 0; i < _items.Count; i++)
         {
@@ -192,36 +171,36 @@ public class DebugMenu
 
             if (item is BoolItem)
             {
-                var toggleRect = new Rectangle((int)btnAreaX, (int)rowY, (int)(ButtonWidth * 2 + ButtonGap + maxValueWidth), (int)ButtonHeight);
+                var toggleRect = new Rectangle((int)btnAreaX, (int)rowY, (int)(ButtonWidth * 2 + BtnGap + maxValueWidth), (int)BtnHeight);
                 row.ToggleBtn = toggleRect;
-                DrawButton(spriteBatch, pixel, font, toggleRect, item.DisplayValue(),
+                DrawBtn(spriteBatch, pixel, font, toggleRect, item.DisplayValue(),
                     item.DisplayValue() == "ON" ? new Color(40, 120, 40, 200) : new Color(80, 40, 40, 200));
             }
             else if (item is ColorItem colorItem)
             {
-                var minusRect = new Rectangle((int)btnAreaX, (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
-                var plusRect = new Rectangle((int)plusX, (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
+                var minusRect = new Rectangle((int)btnAreaX, (int)rowY, (int)ButtonWidth, (int)BtnHeight);
+                var plusRect = new Rectangle((int)plusX, (int)rowY, (int)ButtonWidth, (int)BtnHeight);
                 row.MinusBtn = minusRect;
                 row.PlusBtn = plusRect;
 
-                DrawButton(spriteBatch, pixel, font, minusRect, "-", new Color(60, 60, 60, 200));
+                DrawBtn(spriteBatch, pixel, font, minusRect, "-", new Color(60, 60, 60, 200));
                 spriteBatch.DrawString(font, item.DisplayValue(), new Vector2(valueX, rowY), Color.White);
-                DrawButton(spriteBatch, pixel, font, plusRect, "+", new Color(60, 60, 60, 200));
+                DrawBtn(spriteBatch, pixel, font, plusRect, "+", new Color(60, 60, 60, 200));
 
-                var toggleRect = new Rectangle((int)(plusX + ButtonWidth + ButtonGap), (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
+                var toggleRect = new Rectangle((int)(plusX + ButtonWidth + BtnGap), (int)rowY, (int)ButtonWidth, (int)BtnHeight);
                 row.ToggleBtn = toggleRect;
-                DrawButton(spriteBatch, pixel, font, toggleRect, colorItem.ComponentName(), new Color(80, 60, 40, 200));
+                DrawBtn(spriteBatch, pixel, font, toggleRect, colorItem.ComponentName(), new Color(80, 60, 40, 200));
             }
             else
             {
-                var minusRect = new Rectangle((int)btnAreaX, (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
-                var plusRect = new Rectangle((int)plusX, (int)rowY, (int)ButtonWidth, (int)ButtonHeight);
+                var minusRect = new Rectangle((int)btnAreaX, (int)rowY, (int)ButtonWidth, (int)BtnHeight);
+                var plusRect = new Rectangle((int)plusX, (int)rowY, (int)ButtonWidth, (int)BtnHeight);
                 row.MinusBtn = minusRect;
                 row.PlusBtn = plusRect;
 
-                DrawButton(spriteBatch, pixel, font, minusRect, "-", new Color(60, 60, 60, 200));
+                DrawBtn(spriteBatch, pixel, font, minusRect, "-", new Color(60, 60, 60, 200));
                 spriteBatch.DrawString(font, item.DisplayValue(), new Vector2(valueX, rowY), Color.White);
-                DrawButton(spriteBatch, pixel, font, plusRect, "+", new Color(60, 60, 60, 200));
+                DrawBtn(spriteBatch, pixel, font, plusRect, "+", new Color(60, 60, 60, 200));
             }
 
             _rowLayouts.Add(row);
@@ -231,10 +210,10 @@ public class DebugMenu
         float btnRowY = cy + _items.Count * lineHeight;
         float saveBtnW = font.MeasureString("Save").X + Padding;
         float loadBtnW = font.MeasureString("Load").X + Padding;
-        _saveBtn = new Rectangle((int)(x + Padding), (int)btnRowY, (int)saveBtnW, (int)ButtonHeight);
-        _loadBtn = new Rectangle((int)(x + Padding + saveBtnW + ButtonGap), (int)btnRowY, (int)loadBtnW, (int)ButtonHeight);
-        DrawButton(spriteBatch, pixel, font, _saveBtn.Value, "Save", new Color(40, 80, 40, 200));
-        DrawButton(spriteBatch, pixel, font, _loadBtn.Value, "Load", new Color(40, 40, 80, 200));
+        _saveBtn = new Rectangle((int)(x + Padding), (int)btnRowY, (int)saveBtnW, (int)BtnHeight);
+        _loadBtn = new Rectangle((int)(x + Padding + saveBtnW + BtnGap), (int)btnRowY, (int)loadBtnW, (int)BtnHeight);
+        DrawBtn(spriteBatch, pixel, font, _saveBtn.Value, "Save", new Color(40, 80, 40, 200));
+        DrawBtn(spriteBatch, pixel, font, _loadBtn.Value, "Load", new Color(40, 40, 80, 200));
 
         // Status
         if (_statusTimer > 0 && _statusMessage != null)
@@ -242,16 +221,6 @@ public class DebugMenu
             float statusY = btnRowY + lineHeight;
             spriteBatch.DrawString(font, _statusMessage, new Vector2(x + Padding, statusY), Color.LimeGreen);
         }
-    }
-
-    private static void DrawButton(SpriteBatch spriteBatch, Texture2D pixel, SpriteFont font,
-                                    Rectangle rect, string text, Color bgColor)
-    {
-        spriteBatch.Draw(pixel, rect, bgColor);
-        var textSize = font.MeasureString(text);
-        float tx = rect.X + (rect.Width - textSize.X) / 2f;
-        float ty = rect.Y + (rect.Height - textSize.Y) / 2f;
-        spriteBatch.DrawString(font, text, new Vector2(tx, ty), Color.White);
     }
 
     // --- Layout info ---

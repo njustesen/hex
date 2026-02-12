@@ -104,19 +104,17 @@ public class ViewportTests
     }
 
     [Fact]
-    public void Viewport_HoverTile_IsNullByDefault()
+    public void InteractionState_HoverTile_IsNullByDefault()
     {
-        var map = CreateTestMap();
-        var viewport = new Viewport(0, 0, 800, 600, 1f, map, isPrimary: true);
-        Assert.Null(viewport.HoverTile);
+        var state = new InteractionState();
+        Assert.Null(state.HoverTile);
     }
 
     [Fact]
-    public void Viewport_SelectedTile_IsNullByDefault()
+    public void InteractionState_SelectedTile_IsNullByDefault()
     {
-        var map = CreateTestMap();
-        var viewport = new Viewport(0, 0, 800, 600, 1f, map, isPrimary: true);
-        Assert.Null(viewport.SelectedTile);
+        var state = new InteractionState();
+        Assert.Null(state.SelectedTile);
     }
 
     [Fact]
