@@ -52,12 +52,8 @@ public class Unit
 
     public void TakeDamage(int damage)
     {
-        if (Armor > 0)
-        {
-            Armor--;
-            return;
-        }
-        Health = Math.Max(Health - damage, 0);
+        int effective = Math.Max(damage - Armor, 0);
+        Health = Math.Max(Health - effective, 0);
     }
 
     public void ResetTurn()

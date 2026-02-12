@@ -48,23 +48,31 @@ public class CombatTests
     }
 
     [Fact]
-    public void Armor_AbsorbsFullAttack_HealthUnchanged()
+    public void Armor_ReducesDamage()
     {
         var unit = new Unit("Tank"); // HP:5, Armor:1
-        int healthBefore = unit.Health;
-        unit.TakeDamage(4);
-        Assert.Equal(healthBefore, unit.Health);
-        Assert.Equal(0, unit.Armor);
+        unit.TakeDamage(4); // 4-1=3 effective
+        Assert.Equal(2, unit.Health);
+        Assert.Equal(1, unit.Armor); // armor doesn't deplete
     }
 
     [Fact]
-    public void AfterArmorConsumed_DamageApplies()
+    public void Armor_ReducesEveryAttack()
     {
         var unit = new Unit("Fighter"); // HP:4, Armor:1
-        unit.TakeDamage(3); // absorbs (armor 1->0)
-        Assert.Equal(4, unit.Health);
-        unit.TakeDamage(3); // now hits health
-        Assert.Equal(1, unit.Health);
+        unit.TakeDamage(3); // 3-1=2 effective, HP 4→2
+        Assert.Equal(2, unit.Health);
+        unit.TakeDamage(3); // 3-1=2 effective, HP 2→0
+        Assert.Equal(0, unit.Health);
+        Assert.Equal(1, unit.Armor); // still intact
+    }
+
+    [Fact]
+    public void Armor_NoDamageWhenArmorExceedsDamage()
+    {
+        var unit = new Unit("Battlecruiser"); // HP:7, Armor:2
+        unit.TakeDamage(1); // 1-2=0 effective
+        Assert.Equal(7, unit.Health);
     }
 
     [Fact]
@@ -153,8 +161,7 @@ public class CombatTests
         var gm = new GameplayManager();
         gm.OnTileClicked(attackerTile, map); // select
         gm.OnTileClicked(targetTile, map);   // preview attack
-        gm.OnTileClicked(targetTile, map);   // confirm attack (add to plan)
-        gm.OnTileClicked(targetTile, map);   // execute plan
+        gm.OnTileClicked(targetTile, map);   // confirm (auto-executes)
         TickUntilDone(gm);
 
         Assert.Null(targetTile.Unit);
@@ -185,13 +192,12 @@ public class CombatTests
         var gm = new GameplayManager();
         gm.OnTileClicked(attackerTile, map); // select
         gm.OnTileClicked(targetTile, map);   // preview attack
-        gm.OnTileClicked(targetTile, map);   // confirm attack (add to plan)
-        gm.OnTileClicked(targetTile, map);   // execute plan
+        gm.OnTileClicked(targetTile, map);   // confirm (auto-executes)
         TickUntilDone(gm);
 
-        // Elevation bonus: armor goes 0->1, then TakeDamage absorbs (1->0), health unchanged
-        Assert.Equal(3, target.Health);
-        Assert.Equal(0, target.Armor);
+        // Elevation bonus: armor 0→1, damage 2-1=1 effective, HP 3→2
+        Assert.Equal(2, target.Health);
+        Assert.Equal(1, target.Armor);
     }
 
     [Fact]
@@ -213,11 +219,10 @@ public class CombatTests
         var gm = new GameplayManager();
         gm.OnTileClicked(attackerTile, map); // select
         gm.OnTileClicked(targetTile, map);   // preview attack
-        gm.OnTileClicked(targetTile, map);   // confirm attack (add to plan)
-        gm.OnTileClicked(targetTile, map);   // execute plan
+        gm.OnTileClicked(targetTile, map);   // confirm (auto-executes)
         TickUntilDone(gm);
 
-        // Flying attacker ignores elevation bonus, so damage applies directly: 3-3=0
+        // Flying attacker ignores elevation bonus, so damage applies directly: 3-0=3, HP 3→0
         Assert.Equal(0, target.Health);
         Assert.Null(targetTile.Unit);
     }
@@ -241,11 +246,10 @@ public class CombatTests
         var gm = new GameplayManager();
         gm.OnTileClicked(attackerTile, map); // select
         gm.OnTileClicked(targetTile, map);   // preview attack
-        gm.OnTileClicked(targetTile, map);   // confirm attack (add to plan)
-        gm.OnTileClicked(targetTile, map);   // execute plan
+        gm.OnTileClicked(targetTile, map);   // confirm (auto-executes)
         TickUntilDone(gm);
 
-        // No bonus, damage applies: 3-2=1
+        // No bonus, damage applies: 2-0=2, HP 3→1
         Assert.Equal(1, target.Health);
     }
 
@@ -504,5 +508,102 @@ public class CombatTests
         Assert.Equal(mover, endTile.Unit);
         Assert.Equal(friendly, middleTile.Unit);
         Assert.Null(startTile.Unit);
+    }
+
+    [Fact]
+    public void QueuedAttack_DealsDamage_NoArmor()
+    {
+        var map = CreateFlatMap();
+        var attackerTile = map.Tiles[5][5];
+        var targetTile = map.GetNeighbor(attackerTile, 0)!;
+
+        var attacker = new Unit("Marine") { Team = Team.Red }; // Damage:2
+        var target = new Unit("Marine") { Team = Team.Blue };  // HP:3, Armor:0
+
+        attackerTile.Unit = attacker;
+        targetTile.Unit = target;
+
+        var gm = new GameplayManager();
+        gm.OnTileClicked(attackerTile, map); // select
+        gm.OnTileClicked(targetTile, map);   // preview
+        gm.OnTileClicked(targetTile, map);   // confirm (auto-executes)
+        TickUntilDone(gm);
+
+        Assert.Equal(1, target.Health); // 3 - 2 = 1
+        Assert.Equal(0, target.Armor);
+    }
+
+    [Fact]
+    public void QueuedAttack_ArmorReducesDamage()
+    {
+        var map = CreateFlatMap();
+        var attackerTile = map.Tiles[5][5];
+        var targetTile = map.GetNeighbor(attackerTile, 0)!;
+
+        var attacker = new Unit("Tank") { Team = Team.Red }; // Damage:4
+        var target = new Unit("Tank") { Team = Team.Blue };  // HP:5, Armor:1
+
+        attackerTile.Unit = attacker;
+        targetTile.Unit = target;
+
+        var gm = new GameplayManager();
+        gm.OnTileClicked(attackerTile, map); // select
+        gm.OnTileClicked(targetTile, map);   // preview
+        gm.OnTileClicked(targetTile, map);   // confirm (auto-executes)
+        TickUntilDone(gm);
+
+        // Armor reduces: 4-1=3 effective, HP 5→2, armor stays at 1
+        Assert.Equal(2, target.Health);
+        Assert.Equal(1, target.Armor);
+    }
+
+    [Fact]
+    public void QueuedAttack_MoveAttack_DealsDamage()
+    {
+        var map = CreateFlatMap();
+        var unitTile = map.Tiles[5][5];
+        var moveTile = map.GetNeighbor(unitTile, 0)!;
+        var enemyTile = map.GetNeighbor(moveTile, 1)!;
+
+        var attacker = new Unit("Marine") { Team = Team.Red }; // MP:2, Damage:2
+        var enemy = new Unit("Marine") { Team = Team.Blue };   // HP:3, Armor:0
+
+        unitTile.Unit = attacker;
+        enemyTile.Unit = enemy;
+
+        var gm = new GameplayManager();
+        gm.OnTileClicked(unitTile, map);   // select
+        gm.OnTileClicked(moveTile, map);   // plan move
+        gm.OnTileClicked(enemyTile, map);  // add attack (immediate during plan)
+        gm.OnTileClicked(enemyTile, map);  // execute (last target is attack)
+        TickUntilDone(gm);
+
+        Assert.Equal(1, enemy.Health); // 3 - 2 = 1
+        Assert.Equal(attacker, moveTile.Unit);
+    }
+
+    [Fact]
+    public void QueuedAttack_AttackMove_DealsDamage()
+    {
+        var map = CreateFlatMap();
+        var unitTile = map.Tiles[5][5];
+        var enemyTile = map.GetNeighbor(unitTile, 0)!;
+        var moveTile = map.GetNeighbor(unitTile, 2)!;
+
+        var attacker = new Unit("Marine") { Team = Team.Red }; // MP:2, Damage:2
+        var enemy = new Unit("Marine") { Team = Team.Blue };   // HP:3, Armor:0
+
+        unitTile.Unit = attacker;
+        enemyTile.Unit = enemy;
+
+        var gm = new GameplayManager();
+        gm.OnTileClicked(unitTile, map);   // select
+        gm.OnTileClicked(enemyTile, map);  // preview attack
+        gm.OnTileClicked(moveTile, map);   // auto-confirm attack + plan move
+        gm.OnTileClicked(moveTile, map);   // execute
+        TickUntilDone(gm);
+
+        Assert.Equal(1, enemy.Health); // 3 - 2 = 1
+        Assert.Equal(attacker, moveTile.Unit);
     }
 }

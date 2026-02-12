@@ -113,10 +113,10 @@ public class GameplayManager
             }
             else if (tile == _pendingAttackTarget)
             {
-                System.Console.WriteLine($"[Click {tilePos}] Step4: ADD ATTACK to plan (confirmed) {planDesc}");
-                // Second click on direct attack → add to plan
+                System.Console.WriteLine($"[Click {tilePos}] Step4: EXECUTE ATTACK (confirmed) {planDesc}");
+                // Second click on direct attack → add and execute immediately
                 AddAttackToPlan(tile, map);
-                _pendingAttackTarget = null;
+                ExecutePlan(map);
             }
             else
             {
@@ -297,8 +297,12 @@ public class GameplayManager
                                  && !_execUnit.IsFlying;
                 if (elevBonus) target.Armor++;
 
+                int hpBefore = target.Health;
+                int armorBefore = target.Armor;
                 target.TakeDamage(_execUnit.Damage);
                 _execUnit.AttacksRemaining--;
+
+                System.Console.WriteLine($"[ATTACK] {_execUnit.Type} ({_execCurrentTile.X},{_execCurrentTile.Y}) → {target.Type} ({action.Target.X},{action.Target.Y}) dmg={_execUnit.Damage} elevBonus={elevBonus} armor={armorBefore}→{target.Armor} hp={hpBefore}→{target.Health} alive={target.IsAlive}");
 
                 _animationTimer = EngineConfig.PlanStepDelay;
                 _animSourceTile = _execCurrentTile;
@@ -306,6 +310,10 @@ public class GameplayManager
 
                 if (!target.IsAlive)
                     action.Target.Unit = null;
+            }
+            else
+            {
+                System.Console.WriteLine($"[ATTACK] {_execUnit.Type} → MISSED (target={target?.Type ?? "null"} team={target?.Team.ToString() ?? "n/a"})");
             }
         }
         else
