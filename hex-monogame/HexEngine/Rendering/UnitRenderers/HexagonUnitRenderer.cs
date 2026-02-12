@@ -14,14 +14,15 @@ public class HexagonUnitRenderer : UnitRenderer
         UnitColorDef? colorDef, float fogFactor)
     {
         // Star Destroyer wedge: pointed nose, wide stern
-        // Hull vertices
-        Vector2 nose      = W(wp.X, wp.Y - r * 1.1f);
-        Vector2 rNeck     = W(wp.X + r * 0.25f, wp.Y - r * 0.5f);
-        Vector2 rWing     = W(wp.X + r * 0.9f, wp.Y + r * 0.6f);
-        Vector2 rStern    = W(wp.X + r * 0.7f, wp.Y + r * 0.9f);
-        Vector2 lStern    = W(wp.X - r * 0.7f, wp.Y + r * 0.9f);
-        Vector2 lWing     = W(wp.X - r * 0.9f, wp.Y + r * 0.6f);
-        Vector2 lNeck     = W(wp.X - r * 0.25f, wp.Y - r * 0.5f);
+        // Normalize so nose (max extent) = r
+        float s = r / 1.1f;
+        Vector2 nose      = W(wp.X, wp.Y - s * 1.1f);
+        Vector2 rNeck     = W(wp.X + s * 0.25f, wp.Y - s * 0.5f);
+        Vector2 rWing     = W(wp.X + s * 0.9f, wp.Y + s * 0.6f);
+        Vector2 rStern    = W(wp.X + s * 0.7f, wp.Y + s * 0.9f);
+        Vector2 lStern    = W(wp.X - s * 0.7f, wp.Y + s * 0.9f);
+        Vector2 lWing     = W(wp.X - s * 0.9f, wp.Y + s * 0.6f);
+        Vector2 lNeck     = W(wp.X - s * 0.25f, wp.Y - s * 0.5f);
 
         // Hull is concave at the neck→wing transition, so split into convex sub-polygons
         Color fogFill = MapRenderer.ApplyFog(fill, fogFactor);
@@ -35,16 +36,16 @@ public class HexagonUnitRenderer : UnitRenderer
         // Two turrets — both pointing forward (up)
         Color tFill = ColorFromDef(colorDef?.TurretFill, fill);
         Color tOutline = ColorFromDef(colorDef?.TurretOutline, outline);
-        float tBarrelW = r * 0.07f;
-        float tBarrelH = r * 0.5f;
-        float tRingR = r * 0.18f;
+        float tBarrelW = s * 0.07f;
+        float tBarrelH = s * 0.5f;
+        float tRingR = s * 0.18f;
 
         // Forward turret (near the nose)
-        float fwdY = wp.Y - r * 0.25f;
+        float fwdY = wp.Y - s * 0.25f;
         DrawTurretForward(drawer, W, wp.X, fwdY, tBarrelW, tBarrelH, tRingR, tFill, tOutline, fogFactor);
 
         // Aft turret (mid-body) — also pointing forward
-        float aftY = wp.Y + r * 0.55f;
+        float aftY = wp.Y + s * 0.55f;
         DrawTurretForward(drawer, W, wp.X, aftY, tBarrelW, tBarrelH, tRingR, tFill, tOutline, fogFactor);
     }
 
@@ -75,13 +76,14 @@ public class HexagonUnitRenderer : UnitRenderer
         Vector2 center, float r, Color color)
     {
         // Wedge shadow matching the hull shape — split into convex sub-polygons
-        Vector2 nose   = S(center.X, center.Y - r * 1.1f);
-        Vector2 rNeck  = S(center.X + r * 0.25f, center.Y - r * 0.5f);
-        Vector2 rWing  = S(center.X + r * 0.9f, center.Y + r * 0.6f);
-        Vector2 rStern = S(center.X + r * 0.7f, center.Y + r * 0.9f);
-        Vector2 lStern = S(center.X - r * 0.7f, center.Y + r * 0.9f);
-        Vector2 lWing  = S(center.X - r * 0.9f, center.Y + r * 0.6f);
-        Vector2 lNeck  = S(center.X - r * 0.25f, center.Y - r * 0.5f);
+        float s = r / 1.1f;
+        Vector2 nose   = S(center.X, center.Y - s * 1.1f);
+        Vector2 rNeck  = S(center.X + s * 0.25f, center.Y - s * 0.5f);
+        Vector2 rWing  = S(center.X + s * 0.9f, center.Y + s * 0.6f);
+        Vector2 rStern = S(center.X + s * 0.7f, center.Y + s * 0.9f);
+        Vector2 lStern = S(center.X - s * 0.7f, center.Y + s * 0.9f);
+        Vector2 lWing  = S(center.X - s * 0.9f, center.Y + s * 0.6f);
+        Vector2 lNeck  = S(center.X - s * 0.25f, center.Y - s * 0.5f);
 
         drawer.DrawFilledPolygon(new[] { nose, rNeck, lNeck }, color);
         drawer.DrawFilledPolygon(new[] { rNeck, rWing, lWing, lNeck }, color);

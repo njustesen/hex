@@ -16,19 +16,57 @@ public abstract class UnitRenderer
         ["triangle"] = new UnitRenderers.TriangleUnitRenderer(),
         ["arrow"] = new UnitRenderers.ArrowUnitRenderer(),
         ["hexagon"] = new UnitRenderers.HexagonUnitRenderer(),
+        ["circle_turret"] = new UnitRenderers.CircleTurretUnitRenderer(),
+        ["missile_tower"] = new UnitRenderers.MissileTowerUnitRenderer(),
     };
     private static readonly UnitRenderer _fallback = new UnitRenderers.DiamondUnitRenderer();
 
     public static UnitRenderer GetRenderer(string shape)
         => _renderers.TryGetValue(shape, out var r) ? r : _fallback;
 
-    public void Draw(PrimitiveDrawer drawer, Viewport vp, Tile tile,
-                     Vector2[] screenPoints, float fogFactor)
+    // Shared team colors — all units on the same team use the same fill/outline
+    private static readonly Dictionary<Team, (Color Fill, Color Outline, Color TurretFill, Color TurretOutline)> TeamColors = new()
     {
-        var unit = tile.Unit!;
+        [Team.Red] = (new Color(180, 40, 40), new Color(120, 20, 20), new Color(210, 70, 70), new Color(140, 40, 40)),
+        [Team.Blue] = (new Color(40, 80, 180), new Color(20, 50, 120), new Color(70, 110, 210), new Color(40, 70, 140)),
+    };
+
+    public void Draw(PrimitiveDrawer drawer, Viewport vp, Tile tile,
+                     Vector2[] screenPoints, float fogFactor, bool isEnemy = false, bool isEditor = false,
+                     Unit? unitOverride = null)
+    {
+        var unit = unitOverride ?? tile.Unit!;
         var def = UnitDefs.Get(unit.Type);
-        string teamKey = unit.Team == Team.Red ? "red" : "blue";
-        var colorDef = def.Colors.ContainsKey(teamKey) ? def.Colors[teamKey] : null;
+        var teamColor = TeamColors.TryGetValue(unit.Team, out var tc) ? tc : TeamColors[Team.Red];
+
+        // Minimap: just a filled circle with team color, no shape/stats
+        if (vp.IsMinimap)
+        {
+            int vertCount = vp.Map.EdgeCount;
+            float cx = 0, cy = 0;
+            for (int i = 0; i < vertCount; i++) { cx += screenPoints[i].X; cy += screenPoints[i].Y; }
+            var center = new Vector2(cx / vertCount, cy / vertCount);
+            float hw = 0, hh = 0;
+            for (int i = 0; i < vertCount; i++)
+            {
+                float dx = Math.Abs(screenPoints[i].X - center.X);
+                float dy = Math.Abs(screenPoints[i].Y - center.Y);
+                if (dx > hw) hw = dx;
+                if (dy > hh) hh = dy;
+            }
+            float mr = Math.Max(2f, Math.Min(hw, hh) * 0.6f);
+            drawer.DrawFilledCircle(center, mr, teamColor.Fill);
+            drawer.DrawCircle(center, mr, teamColor.Outline);
+            return;
+        }
+
+        var colorDef = new UnitColorDef
+        {
+            Fill = new List<int> { teamColor.Fill.R, teamColor.Fill.G, teamColor.Fill.B },
+            Outline = new List<int> { teamColor.Outline.R, teamColor.Outline.G, teamColor.Outline.B },
+            TurretFill = new List<int> { teamColor.TurretFill.R, teamColor.TurretFill.G, teamColor.TurretFill.B },
+            TurretOutline = new List<int> { teamColor.TurretOutline.R, teamColor.TurretOutline.G, teamColor.TurretOutline.B },
+        };
 
         // Screen-space polygon centroid (accounts for perspective + elevation)
         int vertexCount = vp.Map.EdgeCount;
@@ -101,23 +139,38 @@ public abstract class UnitRenderer
         // Base circle — size is radius relative to tile half-extent
         float baseWorldR = def.Size * halfExtentX;
         float baseScreenR = Math.Max(3f, baseWorldR * scaleX);
-        drawer.DrawCircle(drawCenter, baseScreenR, MapRenderer.ApplyFog(new Color(90, 90, 90, 140), fogFactor));
+        if (isEditor)
+            drawer.DrawCircle(drawCenter, baseScreenR, MapRenderer.ApplyFog(new Color(90, 90, 90, 140), fogFactor));
 
-        Color fill = ColorFromDef(colorDef?.Fill, new Color(128, 128, 128));
-        Color outline = ColorFromDef(colorDef?.Outline, new Color(80, 80, 80));
+        Color fill = ColorFromDef(colorDef.Fill, new Color(128, 128, 128));
+        Color outline = ColorFromDef(colorDef.Outline, new Color(80, 80, 80));
 
         // Shapes fill the base circle — baseWorldR is the reference radius
         float r = baseWorldR;
 
         DrawShape(drawer, W, drawCenter, wp, r, fill, outline, colorDef, fogFactor);
 
-        // Anchor points at top and bottom of the base circle
-        Vector2 bottomAnchor = new Vector2(drawCenter.X, drawCenter.Y + baseScreenR);
-        Vector2 topAnchor = new Vector2(drawCenter.X, drawCenter.Y - baseScreenR);
+        // Stat bars below unit
+        const float rowHeight = 8f;
+        const float statGap = 3f;
+        float rowStartY = drawCenter.Y + baseScreenR + statGap;
 
-        DrawHealthBar(drawer, bottomAnchor, unit, fogFactor);
-        DrawMpBar(drawer, bottomAnchor, unit, fogFactor);
-        DrawAmmoPips(drawer, topAnchor, unit, fogFactor);
+        if (isEnemy)
+        {
+            // Enemy units: only show health bar
+            Vector2 healthAnchor = new Vector2(drawCenter.X, rowStartY);
+            DrawHealthBar(drawer, healthAnchor, unit, fogFactor);
+        }
+        else
+        {
+            // Friendly units: show ammo, movement, and health
+            Vector2 ammoAnchor = new Vector2(drawCenter.X, rowStartY);
+            Vector2 mpAnchor = new Vector2(drawCenter.X, rowStartY + rowHeight);
+            Vector2 healthAnchor = new Vector2(drawCenter.X, rowStartY + 2 * rowHeight);
+            DrawAmmoPips(drawer, ammoAnchor, unit, fogFactor);
+            DrawMpBar(drawer, mpAnchor, unit, fogFactor);
+            DrawHealthBar(drawer, healthAnchor, unit, fogFactor);
+        }
     }
 
     protected abstract void DrawShape(PrimitiveDrawer drawer,
@@ -166,6 +219,7 @@ public abstract class UnitRenderer
         const float gap = 3f;
         float totalW = unit.MaxAttacks * pipW + (unit.MaxAttacks - 1) * gap;
         float startX = anchor.X - totalW / 2f;
+        float py = anchor.Y - pipW / 2f;
 
         for (int i = 0; i < unit.MaxAttacks; i++)
         {
@@ -173,7 +227,7 @@ public abstract class UnitRenderer
             Color pipColor = i < unit.AttacksRemaining
                 ? MapRenderer.ApplyFog(new Color(255, 220, 40), fogFactor)
                 : MapRenderer.ApplyFog(new Color(60, 50, 20), fogFactor);
-            drawer.DrawFilledRect(px, anchor.Y - pipW / 2f, pipW, pipW, pipColor);
+            drawer.DrawFilledRect(px, py, pipW, pipW, pipColor);
         }
     }
 
@@ -185,10 +239,8 @@ public abstract class UnitRenderer
 
         const float circleR = 2.5f;
         const float gap = 3f;
-        const float mpOffset = 7f;
         float totalW = max * (circleR * 2f) + (max - 1) * gap;
         float startX = anchor.X - totalW / 2f;
-        float cy = anchor.Y - mpOffset;
 
         for (int i = 0; i < max; i++)
         {
@@ -196,7 +248,7 @@ public abstract class UnitRenderer
             Color segColor = i < unit.MovementPoints
                 ? MapRenderer.ApplyFog(new Color(100, 160, 220), fogFactor)
                 : MapRenderer.ApplyFog(new Color(15, 20, 40), fogFactor);
-            drawer.DrawFilledCircle(new Vector2(cx, cy), circleR, segColor);
+            drawer.DrawFilledCircle(new Vector2(cx, anchor.Y), circleR, segColor);
         }
     }
 
@@ -212,8 +264,9 @@ public abstract class UnitRenderer
         const float pad = 1f;
         float totalW = max * segW + (max - 1) * segGap;
         float startX = anchor.X - totalW / 2f;
+        float top = anchor.Y - (segH + pad * 2) / 2f;
 
-        drawer.DrawFilledRect(startX - pad, anchor.Y - pad, totalW + pad * 2, segH + pad * 2,
+        drawer.DrawFilledRect(startX - pad, top, totalW + pad * 2, segH + pad * 2,
             MapRenderer.ApplyFog(new Color(20, 20, 20), fogFactor));
 
         for (int i = 0; i < max; i++)
@@ -222,7 +275,7 @@ public abstract class UnitRenderer
             Color segColor = i < unit.Health
                 ? MapRenderer.ApplyFog(new Color(40, 180, 40), fogFactor)
                 : MapRenderer.ApplyFog(new Color(120, 30, 30), fogFactor);
-            drawer.DrawFilledRect(sx, anchor.Y, segW, segH, segColor);
+            drawer.DrawFilledRect(sx, top + pad, segW, segH, segColor);
         }
     }
 }

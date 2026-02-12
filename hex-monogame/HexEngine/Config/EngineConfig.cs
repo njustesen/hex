@@ -23,6 +23,7 @@ public static class EngineConfig
     public static bool ShowGrid { get; set; } = false;
     public static bool ShowInnerShapes { get; set; } = true;
     public static float InnerShapeScale { get; set; } = 0.8f;
+    public static float PlanStepDelay { get; set; } = 0.5f;
 
     public static void Save()
     {
@@ -43,6 +44,7 @@ public static class EngineConfig
             ShowGrid = ShowGrid,
             ShowInnerShapes = ShowInnerShapes,
             InnerShapeScale = InnerShapeScale,
+            PlanStepDelay = PlanStepDelay,
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -73,6 +75,7 @@ public static class EngineConfig
             ShowGrid = data.ShowGrid;
             ShowInnerShapes = data.ShowInnerShapes;
             InnerShapeScale = data.InnerShapeScale;
+            PlanStepDelay = data.PlanStepDelay;
         }
         catch (Exception)
         {
@@ -97,5 +100,6 @@ public static class EngineConfig
         public bool ShowGrid { get; set; } = false;
         public bool ShowInnerShapes { get; set; } = true;
         public float InnerShapeScale { get; set; } = 0.8f;
+        public float PlanStepDelay { get; set; } = 0.3f;
     }
 }

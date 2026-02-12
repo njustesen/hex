@@ -1,3 +1,4 @@
+using HexEngine.Config;
 using HexEngine.Core;
 using HexEngine.Maps;
 
@@ -29,6 +30,14 @@ public class CombatTests
 
     private static HexGridMap CreateFlatMap(int cols = 10, int rows = 10)
         => new HexGridMap(cols, rows, 100f, 0.7f, "flat");
+
+    /// Tick the gameplay manager until step-by-step execution completes.
+    private static void TickUntilDone(GameplayManager gm, int maxSteps = 20)
+    {
+        float dt = EngineConfig.PlanStepDelay + 0.01f;
+        for (int i = 0; i < maxSteps && gm.IsAnimating; i++)
+            gm.Tick(dt);
+    }
 
     [Fact]
     public void TakeDamage_ReducesHealth()
@@ -114,7 +123,8 @@ public class CombatTests
     {
         var map = CreateFlatMap();
         var tile = map.Tiles[5][5];
-        var unit = new Unit("Marine");
+        // Unit must be Blue because EndTurn switches Red→Blue and resets Blue units
+        var unit = new Unit("Marine") { Team = Team.Blue };
         unit.AttacksRemaining = 0;
         unit.MovementPoints = 0;
         tile.Unit = unit;
@@ -142,7 +152,10 @@ public class CombatTests
 
         var gm = new GameplayManager();
         gm.OnTileClicked(attackerTile, map); // select
-        gm.OnTileClicked(targetTile, map);   // attack
+        gm.OnTileClicked(targetTile, map);   // preview attack
+        gm.OnTileClicked(targetTile, map);   // confirm attack (add to plan)
+        gm.OnTileClicked(targetTile, map);   // execute plan
+        TickUntilDone(gm);
 
         Assert.Null(targetTile.Unit);
         Assert.Equal(0, attacker.AttacksRemaining);
@@ -171,7 +184,10 @@ public class CombatTests
 
         var gm = new GameplayManager();
         gm.OnTileClicked(attackerTile, map); // select
-        gm.OnTileClicked(targetTile, map);   // attack
+        gm.OnTileClicked(targetTile, map);   // preview attack
+        gm.OnTileClicked(targetTile, map);   // confirm attack (add to plan)
+        gm.OnTileClicked(targetTile, map);   // execute plan
+        TickUntilDone(gm);
 
         // Elevation bonus: armor goes 0->1, then TakeDamage absorbs (1->0), health unchanged
         Assert.Equal(3, target.Health);
@@ -195,8 +211,11 @@ public class CombatTests
         targetTile.Unit = target;
 
         var gm = new GameplayManager();
-        gm.OnTileClicked(attackerTile, map);
-        gm.OnTileClicked(targetTile, map);
+        gm.OnTileClicked(attackerTile, map); // select
+        gm.OnTileClicked(targetTile, map);   // preview attack
+        gm.OnTileClicked(targetTile, map);   // confirm attack (add to plan)
+        gm.OnTileClicked(targetTile, map);   // execute plan
+        TickUntilDone(gm);
 
         // Flying attacker ignores elevation bonus, so damage applies directly: 3-3=0
         Assert.Equal(0, target.Health);
@@ -220,8 +239,11 @@ public class CombatTests
         targetTile.Unit = target;
 
         var gm = new GameplayManager();
-        gm.OnTileClicked(attackerTile, map);
-        gm.OnTileClicked(targetTile, map);
+        gm.OnTileClicked(attackerTile, map); // select
+        gm.OnTileClicked(targetTile, map);   // preview attack
+        gm.OnTileClicked(targetTile, map);   // confirm attack (add to plan)
+        gm.OnTileClicked(targetTile, map);   // execute plan
+        TickUntilDone(gm);
 
         // No bonus, damage applies: 3-2=1
         Assert.Equal(1, target.Health);
@@ -306,5 +328,181 @@ public class CombatTests
     {
         var unit = new Unit("Tank");
         Assert.False(unit.IsFlying);
+    }
+
+    // --- Turn system tests ---
+
+    [Fact]
+    public void EndTurn_SwitchesTeam()
+    {
+        var map = CreateFlatMap();
+        var gm = new GameplayManager();
+        Assert.Equal(Team.Red, gm.CurrentTeam);
+        gm.EndTurn(map);
+        Assert.Equal(Team.Blue, gm.CurrentTeam);
+        gm.EndTurn(map);
+        Assert.Equal(Team.Red, gm.CurrentTeam);
+    }
+
+    [Fact]
+    public void EndTurn_OnlyResetsNewTeam()
+    {
+        var map = CreateFlatMap();
+        var redTile = map.Tiles[3][3];
+        var blueTile = map.Tiles[5][5];
+
+        var redUnit = new Unit("Marine") { Team = Team.Red };
+        var blueUnit = new Unit("Marine") { Team = Team.Blue };
+        redUnit.MovementPoints = 0;
+        redUnit.AttacksRemaining = 0;
+        blueUnit.MovementPoints = 0;
+        blueUnit.AttacksRemaining = 0;
+
+        redTile.Unit = redUnit;
+        blueTile.Unit = blueUnit;
+
+        var gm = new GameplayManager();
+        // Currently Red's turn. EndTurn switches to Blue.
+        gm.EndTurn(map);
+
+        // Blue's units should be reset
+        Assert.Equal(blueUnit.MaxMovementPoints, blueUnit.MovementPoints);
+        Assert.Equal(blueUnit.MaxAttacks, blueUnit.AttacksRemaining);
+        // Red's units should NOT be reset
+        Assert.Equal(0, redUnit.MovementPoints);
+        Assert.Equal(0, redUnit.AttacksRemaining);
+    }
+
+    [Fact]
+    public void ComputeVisibleTiles_IncludesUnitTileAndNeighbors()
+    {
+        var map = CreateFlatMap();
+        var tile = map.Tiles[5][5];
+        var unit = new Unit("Marine") { Team = Team.Red }; // Sight: 3
+        tile.Unit = unit;
+
+        var visible = GameplayManager.ComputeVisibleTiles(map, Team.Red);
+
+        // Unit's own tile should be visible
+        Assert.Contains(tile, visible);
+        // Adjacent tiles should be visible (within sight range)
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var neighbor = map.GetNeighbor(tile, e);
+            if (neighbor != null)
+                Assert.Contains(neighbor, visible);
+        }
+    }
+
+    [Fact]
+    public void ComputeVisibleTiles_ExcludesEnemyUnits()
+    {
+        var map = CreateFlatMap();
+        var redTile = map.Tiles[5][5];
+        var blueTile = map.Tiles[0][0]; // far away
+        redTile.Unit = new Unit("Marine") { Team = Team.Red };
+        blueTile.Unit = new Unit("Marine") { Team = Team.Blue };
+
+        var redVisible = GameplayManager.ComputeVisibleTiles(map, Team.Red);
+
+        // Red's visibility should not include blue's far-away tile
+        Assert.DoesNotContain(blueTile, redVisible);
+    }
+
+    [Fact]
+    public void Sight_PropertyReadFromDef()
+    {
+        Assert.Equal(3, new Unit("Marine").Sight);
+        Assert.Equal(5, new Unit("Fighter").Sight);
+        Assert.Equal(4, new Unit("LandSpeeder").Sight);
+        Assert.Equal(5, new Unit("AntiAirTurret").Sight);
+        Assert.Equal(4, new Unit("Battlecruiser").Sight);
+    }
+
+    [Fact]
+    public void Plan_MoveAttackMove_Sequence()
+    {
+        var map = CreateFlatMap();
+        var unitTile = map.Tiles[5][5];
+        var moveTile1 = map.GetNeighbor(unitTile, 0)!; // first move
+        var enemyTile = map.GetNeighbor(moveTile1, 1)!; // enemy adjacent to move target
+        var moveTile2 = map.GetNeighbor(moveTile1, 2)!; // second move (different neighbor)
+
+        var attacker = new Unit("Marine") { Team = Team.Red }; // MP:2, Attacks:1, Range:1
+        var enemy = new Unit("Marine") { Team = Team.Blue };
+        enemy.Health = 1;
+
+        unitTile.Unit = attacker;
+        enemyTile.Unit = enemy;
+
+        var gm = new GameplayManager();
+        var state = new InteractionState();
+
+        // 1. Select unit
+        gm.OnTileClicked(unitTile, map);
+        gm.Update(state);
+        Assert.NotNull(state.ReachableTiles);
+        Assert.Contains(moveTile1, state.ReachableTiles!);
+
+        // 2. Plan move to moveTile1
+        gm.OnTileClicked(moveTile1, map);
+        gm.Update(state);
+        Assert.NotNull(state.PlanSteps);
+        Assert.NotNull(state.PlanAttackableTiles);
+
+        // 3. Click attack on enemy — single click adds to plan immediately during planning
+        gm.OnTileClicked(enemyTile, map);
+        gm.Update(state);
+        Assert.Null(state.PendingAttackTarget); // no preview needed during plan
+        // Attack is planned, not executed — enemy still alive
+        Assert.NotNull(enemyTile.Unit);
+        // Should show reachable tiles for further moves
+        Assert.NotNull(state.PlanReachableTiles);
+        Assert.True(state.PlanReachableTiles!.Count > 0);
+
+        // 4. Plan second move
+        gm.OnTileClicked(moveTile2, map);
+        gm.Update(state);
+        Assert.NotNull(state.PlanSteps);
+        Assert.Equal(2, state.PlanSteps!.Count); // two move steps
+
+        // 5. Execute by clicking last move destination
+        gm.OnTileClicked(moveTile2, map);
+        TickUntilDone(gm);
+
+        // Verify: unit moved to moveTile2, enemy dead, attacks used
+        Assert.Equal(attacker, moveTile2.Unit);
+        Assert.Null(unitTile.Unit);
+        Assert.Null(enemyTile.Unit); // enemy killed
+        Assert.Equal(0, attacker.AttacksRemaining);
+        Assert.Equal(0, attacker.MovementPoints);
+    }
+
+    [Fact]
+    public void MoveThrough_FriendlyUnit_NotRemoved()
+    {
+        var map = CreateFlatMap();
+        var startTile = map.Tiles[5][5];
+        var middleTile = map.GetNeighbor(startTile, 0)!;
+        var endTile = map.GetNeighbor(middleTile, 0)!;
+
+        var mover = new Unit("Marine") { Team = Team.Red };
+        var friendly = new Unit("Marine") { Team = Team.Red };
+        friendly.MovementPoints = 0; // can't move, won't be selectable
+
+        startTile.Unit = mover;
+        middleTile.Unit = friendly;
+
+        // Plan path that goes through the friendly unit's tile
+        var gm = new GameplayManager();
+        gm.OnTileClicked(startTile, map);  // select mover
+        gm.OnTileClicked(endTile, map);    // plan move to endTile (path goes through middleTile)
+        gm.OnTileClicked(endTile, map);    // execute
+        TickUntilDone(gm);
+
+        // Mover should be at endTile, friendly should still be on middleTile
+        Assert.Equal(mover, endTile.Unit);
+        Assert.Equal(friendly, middleTile.Unit);
+        Assert.Null(startTile.Unit);
     }
 }

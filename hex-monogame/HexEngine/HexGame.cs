@@ -35,6 +35,8 @@ public class HexGame : Game
     private Texture2D _pixel = null!;
     private int _currentMapMode = 1;
     private GameState _state = GameState.Menu;
+    private int _windowedWidth;
+    private int _windowedHeight;
 
     public HexGame()
     {
@@ -45,6 +47,8 @@ public class HexGame : Game
         _graphics.PreferredBackBufferHeight = EngineConfig.Height;
         IsFixedTimeStep = true;
         TargetElapsedTime = System.TimeSpan.FromSeconds(1.0 / 60.0);
+        _windowedWidth = EngineConfig.Width;
+        _windowedHeight = EngineConfig.Height;
     }
 
     protected override void Initialize()
@@ -89,6 +93,44 @@ public class HexGame : Game
             _ => 1
         };
         SetupViewport();
+    }
+
+    private void ApplyWindowSettings()
+    {
+        if (EngineConfig.Fullscreen)
+        {
+            // Save windowed size before going fullscreen
+            if (!_graphics.IsFullScreen)
+            {
+                _windowedWidth = EngineConfig.Width;
+                _windowedHeight = EngineConfig.Height;
+            }
+            var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+            _graphics.PreferredBackBufferWidth = displayMode.Width;
+            _graphics.PreferredBackBufferHeight = displayMode.Height;
+        }
+        else
+        {
+            // Restore windowed size when leaving fullscreen
+            if (_graphics.IsFullScreen)
+            {
+                EngineConfig.Width = _windowedWidth;
+                EngineConfig.Height = _windowedHeight;
+            }
+            _graphics.PreferredBackBufferWidth = EngineConfig.Width;
+            _graphics.PreferredBackBufferHeight = EngineConfig.Height;
+        }
+
+        _graphics.IsFullScreen = EngineConfig.Fullscreen;
+        _graphics.ApplyChanges();
+
+        // Config reflects actual screen size for rendering
+        EngineConfig.Width = GraphicsDevice.Viewport.Width;
+        EngineConfig.Height = GraphicsDevice.Viewport.Height;
+
+        SetupViewport();
+        _viewport.CreateRenderTarget(GraphicsDevice);
+        _minimap.CreateRenderTarget(GraphicsDevice);
     }
 
     private void SetupViewport()
@@ -159,7 +201,12 @@ public class HexGame : Game
         {
             SetupMapFromGrid(_startupMenu.ResultMap);
             _editor.SetLastSavePath(_startupMenu.ResultMapPath);
+            _gameplay.StartGame(_map, _startupMenu.ResultMode);
             _state = GameState.Playing;
+
+            // In editor mode, open editor automatically
+            if (_startupMenu.ResultMode == GameMode.Editor)
+                _editor.Visible = true;
         }
     }
 
@@ -180,6 +227,12 @@ public class HexGame : Game
         if (_toolbar.EndTurnPressed) _gameplay.EndTurn(_map);
 
         _debugMenu.Update(_inputManager);
+
+        if (_debugMenu.WindowChanged)
+        {
+            _debugMenu.WindowChanged = false;
+            ApplyWindowSettings();
+        }
 
         if (_inputManager.F2Pressed)
             _editor.Visible = !_editor.Visible;
@@ -274,7 +327,7 @@ public class HexGame : Game
                 new Vector2(_minimap.ScreenX1, _minimap.ScreenY1), Color.White);
 
         _toolbar.SetState(_debugMenu.Visible, _editor.Visible);
-        _toolbar.Draw(_spriteBatch, _debugFont, _pixel);
+        _toolbar.Draw(_spriteBatch, _debugFont, _pixel, _gameplay.CurrentTeam);
 
         float panelY = _toolbar.Bottom;
         _debugMenu.Draw(_spriteBatch, _debugFont, _pixel, panelY);

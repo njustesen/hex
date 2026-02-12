@@ -13,10 +13,9 @@ public class TriangleUnitRenderer : UnitRenderer
         Vector2 wp, float r, Color fill, Color outline,
         UnitColorDef? colorDef, float fogFactor)
     {
-        float tr = r * 0.85f;
-        var fTop = W(wp.X, wp.Y - tr);
-        var fLeft = W(wp.X - tr, wp.Y + tr * 0.5f);
-        var fRight = W(wp.X + tr, wp.Y + tr * 0.5f);
+        var fTop = W(wp.X, wp.Y - r);
+        var fLeft = W(wp.X - r, wp.Y + r * 0.5f);
+        var fRight = W(wp.X + r, wp.Y + r * 0.5f);
         drawer.DrawFilledPolygon(new[] { fTop, fRight, fLeft }, MapRenderer.ApplyFog(fill, fogFactor));
         drawer.DrawPolygonOutline(new[] { fTop, fRight, fLeft }, MapRenderer.ApplyFog(outline, fogFactor));
     }

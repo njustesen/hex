@@ -24,8 +24,25 @@ public class InteractionState
     public HashSet<Tile>? PlanReachableTiles { get; set; }
     public HashSet<Tile>? PlanAttackableTiles { get; set; }
 
+    // Planned attacks (confirmed in plan, shown as crosshairs)
+    public List<(Tile Source, Tile Target)>? PlanAttackPairs { get; set; }
+
+    // Pending attack (shown before confirmation)
+    public Tile? PendingAttackTarget { get; set; }
+
+    // Executing unit overlay (drawn when unit passes through occupied tiles)
+    public Tile? ExecUnitTile { get; set; }
+    public Unit? ExecUnit { get; set; }
+
     // Animation
     public float AnimationTimer { get; set; }
     public Tile? AnimationSourceTile { get; set; }
     public Tile? AnimationTargetTile { get; set; }
+
+    // Turn & visibility
+    public Team CurrentTeam { get; set; }
+    public HashSet<Tile>? VisibleTiles { get; set; }
+
+    // Mode
+    public bool IsEditor { get; set; }
 }

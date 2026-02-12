@@ -20,11 +20,13 @@ public class Unit
     public int Damage { get; }
     public int Range { get; }
     public bool CanTargetAir { get; }
+    public bool CanTargetGround { get; }
     public int MaxAttacks { get; }
     public int AttacksRemaining { get; set; }
     public bool CanAttack => AttacksRemaining > 0 && Health > 0;
     public bool IsAlive => Health > 0;
     public bool IsFlying { get; }
+    public int Sight { get; }
 
     public Unit() : this("Marine") { }
 
@@ -41,9 +43,11 @@ public class Unit
         Damage = def.Damage;
         Range = def.Range;
         CanTargetAir = def.CanTargetAir;
+        CanTargetGround = def.CanTargetGround;
         MaxAttacks = def.MaxAttacks;
         AttacksRemaining = MaxAttacks;
         IsFlying = def.Flying;
+        Sight = def.Sight;
     }
 
     public void TakeDamage(int damage)

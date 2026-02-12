@@ -232,7 +232,9 @@
         3,
         4,
         5
-      ]
+      ],
+      "unit": "Marine",
+      "unitTeam": "Blue"
     },
     {
       "x": 9,
@@ -240,7 +242,9 @@
       "elevation": 1,
       "ramps": [
         4
-      ]
+      ],
+      "unit": "Tank",
+      "unitTeam": "Blue"
     },
     {
       "x": 10,
@@ -312,17 +316,23 @@
     {
       "x": 8,
       "y": 9,
-      "elevation": 1
+      "elevation": 1,
+      "unit": "AntiAirTurret",
+      "unitTeam": "Red"
     },
     {
       "x": 9,
       "y": 9,
-      "elevation": 1
+      "elevation": 1,
+      "unit": "AntiAirTurret",
+      "unitTeam": "Red"
     },
     {
       "x": 10,
       "y": 9,
-      "elevation": 1
+      "elevation": 1,
+      "unit": "Fighter",
+      "unitTeam": "Blue"
     },
     {
       "x": 11,
@@ -388,6 +398,13 @@
       "x": 12,
       "y": 10,
       "elevation": 1
+    },
+    {
+      "x": 4,
+      "y": 11,
+      "elevation": 0,
+      "unit": "LandSpeeder",
+      "unitTeam": "Red"
     },
     {
       "x": 9,

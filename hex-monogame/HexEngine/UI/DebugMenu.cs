@@ -21,8 +21,13 @@ public class DebugMenu : Panel
     private float _menuX, _menuY, _menuWidth, _menuHeight;
     private readonly List<RowLayout> _rowLayouts = new();
 
+    public bool WindowChanged { get; set; }
+
     public DebugMenu()
     {
+        _items.Add(new BoolItem("Fullscreen", () => EngineConfig.Fullscreen, v => { EngineConfig.Fullscreen = v; WindowChanged = true; }));
+        _items.Add(new IntItem("Width", () => EngineConfig.Width, v => { EngineConfig.Width = v; WindowChanged = true; }, 100, 640, 3840));
+        _items.Add(new IntItem("Height", () => EngineConfig.Height, v => { EngineConfig.Height = v; WindowChanged = true; }, 100, 480, 2160));
         _items.Add(new FloatItem("Depth Multiplier", () => EngineConfig.DepthMultiplier, v => EngineConfig.DepthMultiplier = v, 0.05f, 0f, 2f));
         _items.Add(new FloatItem("Perspective", () => EngineConfig.PerspectiveFactor, v => EngineConfig.PerspectiveFactor = v, 0.05f, 0f, 1f));
         _items.Add(new BoolItem("Minimap Perspective", () => EngineConfig.MinimapPerspective, v => EngineConfig.MinimapPerspective = v));
@@ -32,6 +37,7 @@ public class DebugMenu : Panel
         _items.Add(new BoolItem("Show Grid", () => EngineConfig.ShowGrid, v => EngineConfig.ShowGrid = v));
         _items.Add(new BoolItem("Inner Shapes", () => EngineConfig.ShowInnerShapes, v => EngineConfig.ShowInnerShapes = v));
         _items.Add(new FloatItem("Inner Scale", () => EngineConfig.InnerShapeScale, v => EngineConfig.InnerShapeScale = v, 0.1f, 0f, 1f));
+        _items.Add(new FloatItem("Step Delay", () => EngineConfig.PlanStepDelay, v => EngineConfig.PlanStepDelay = v, 0.1f, 0.1f, 2f));
         _items.Add(new ColorItem("Tile Color", () => EngineConfig.TileTopColor, v => EngineConfig.TileTopColor = v, 10));
     }
 
@@ -278,6 +284,23 @@ public class DebugMenu : Panel
         public override void Toggle() => _set(!_get());
         public override void Increase() => Toggle();
         public override void Decrease() => Toggle();
+    }
+
+    private class IntItem : MenuItem
+    {
+        private readonly Func<int> _get;
+        private readonly Action<int> _set;
+        private readonly int _step, _min, _max;
+
+        public IntItem(string name, Func<int> get, Action<int> set, int step, int min, int max)
+            : base(name)
+        {
+            _get = get; _set = set; _step = step; _min = min; _max = max;
+        }
+
+        public override string DisplayValue() => $"{_get()}";
+        public override void Increase() => _set(Math.Min(_max, _get() + _step));
+        public override void Decrease() => _set(Math.Max(_min, _get() - _step));
     }
 
     private class ColorItem : MenuItem

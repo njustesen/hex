@@ -13,8 +13,7 @@ public class CircleUnitRenderer : UnitRenderer
         Vector2 wp, float r, Color fill, Color outline,
         UnitColorDef? colorDef, float fogFactor)
     {
-        float cr = r * 0.85f;
-        float screenRadius = Math.Max(3f, Vector2.Distance(drawCenter, W(wp.X + cr, wp.Y)));
+        float screenRadius = Math.Max(3f, Vector2.Distance(drawCenter, W(wp.X + r, wp.Y)));
         drawer.DrawFilledCircle(drawCenter, screenRadius, MapRenderer.ApplyFog(fill, fogFactor));
         drawer.DrawCircle(drawCenter, screenRadius, MapRenderer.ApplyFog(outline, fogFactor));
     }

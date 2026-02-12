@@ -8,8 +8,9 @@ units:
     canTargetAir: true
     maxAttacks: 1
     flying: false
+    sight: 3
     shape: circle
-    size: 0.3
+    size: 0.25
     colors:
       red:
         fill: [180, 40, 40]
@@ -27,8 +28,9 @@ units:
     canTargetAir: false
     maxAttacks: 1
     flying: false
+    sight: 3
     shape: rect_turret
-    size: 0.35
+    size: 0.4
     colors:
       red:
         fill: [140, 50, 50]
@@ -50,8 +52,9 @@ units:
     canTargetAir: true
     maxAttacks: 1
     flying: true
+    sight: 5
     shape: arrow
-    size: 0.4
+    size: 0.36
     colors:
       red:
         fill: [200, 100, 40]
@@ -69,9 +72,10 @@ units:
     canTargetAir: false
     maxAttacks: 2
     flying: false
+    sight: 4
     hover: 0.12
     shape: triangle
-    size: 0.3
+    size: 0.25
     colors:
       red:
         fill: [190, 80, 40]
@@ -79,6 +83,55 @@ units:
       blue:
         fill: [40, 120, 190]
         outline: [20, 80, 130]
+
+  Bunker:
+    movement: 0
+    health: 5
+    armor: 1
+    damage: 2
+    range: 2
+    canTargetAir: false
+    maxAttacks: 1
+    flying: false
+    sight: 3
+    shape: circle_turret
+    size: 0.35
+    colors:
+      red:
+        fill: [130, 100, 70]
+        outline: [90, 65, 45]
+        turretFill: [160, 120, 80]
+        turretOutline: [110, 80, 55]
+      blue:
+        fill: [70, 100, 130]
+        outline: [45, 65, 90]
+        turretFill: [80, 120, 160]
+        turretOutline: [55, 80, 110]
+
+  AntiAirTurret:
+    movement: 0
+    health: 4
+    armor: 1
+    damage: 3
+    range: 4
+    canTargetAir: true
+    canTargetGround: false
+    maxAttacks: 1
+    flying: false
+    sight: 5
+    shape: missile_tower
+    size: 0.35
+    colors:
+      red:
+        fill: [150, 60, 60]
+        outline: [100, 40, 40]
+        turretFill: [190, 80, 80]
+        turretOutline: [130, 50, 50]
+      blue:
+        fill: [60, 60, 150]
+        outline: [40, 40, 100]
+        turretFill: [80, 80, 190]
+        turretOutline: [50, 50, 130]
 
   Battlecruiser:
     movement: 3
@@ -89,8 +142,9 @@ units:
     canTargetAir: false
     maxAttacks: 2
     flying: true
+    sight: 4
     shape: hexagon
-    size: 0.6
+    size: 0.65
     colors:
       red:
         fill: [160, 50, 60]

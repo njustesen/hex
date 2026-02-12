@@ -47,17 +47,34 @@ public class MapRenderer
         // Flying units pass — drawn after all tiles and ground units
         foreach (var tile in sortedTiles)
         {
-            if (tile.Unit != null && tile.Unit.IsFlying)
+            bool flyVisible = state.VisibleTiles == null || state.VisibleTiles.Contains(tile);
+            if (tile.Unit != null && tile.Unit.IsFlying && flyVisible)
             {
                 var screenPoints = vp.GetTileScreenPoints(tile);
                 float fogFactor = UnitRenderer.ComputeFogFactor(vp, tile, fogStrength);
+                bool isEnemy = state.VisibleTiles != null && tile.Unit.Team != state.CurrentTeam;
                 var def = UnitDefs.Get(tile.Unit.Type);
-                UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor);
+                UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor, isEnemy, state.IsEditor);
             }
+        }
+
+        // Executing unit overlay (when passing through occupied tiles)
+        if (state.ExecUnitTile != null && state.ExecUnit != null
+            && state.ExecUnitTile.Unit != state.ExecUnit)
+        {
+            var tile = state.ExecUnitTile;
+            var screenPoints = vp.GetTileScreenPoints(tile);
+            float fogFactor = UnitRenderer.ComputeFogFactor(vp, tile, fogStrength);
+            var def = UnitDefs.Get(state.ExecUnit.Type);
+            UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor,
+                isEnemy: false, isEditor: state.IsEditor, unitOverride: state.ExecUnit);
         }
 
         // Plan visualization (drawn on top)
         DrawPlanVisualization(drawer, vp, state, fogStrength);
+
+        // Pending attack preview
+        DrawPendingAttack(drawer, vp, state);
 
         // Attack animation
         DrawAttackAnimation(drawer, vp, state);
@@ -67,39 +84,82 @@ public class MapRenderer
 
     private void DrawPlanVisualization(PrimitiveDrawer drawer, Viewport vp, InteractionState state, float fogStrength)
     {
-        if (state.PlanPaths == null || state.PlanSteps == null) return;
-
         Color goldColor = new Color(200, 170, 40);
         Color brightGold = new Color(255, 220, 60);
 
-        // Draw lines connecting consecutive tile centers for each path
-        foreach (var path in state.PlanPaths)
+        // Draw move paths
+        if (state.PlanPaths != null)
         {
-            for (int i = 0; i < path.Count - 1; i++)
+            foreach (var path in state.PlanPaths)
             {
-                var fromCenter = GetTileScreenCenter(vp, path[i]);
-                var toCenter = GetTileScreenCenter(vp, path[i + 1]);
-                drawer.DrawLine(fromCenter, toCenter, goldColor);
+                for (int i = 0; i < path.Count - 1; i++)
+                {
+                    var fromCenter = GetTileScreenCenter(vp, path[i]);
+                    var toCenter = GetTileScreenCenter(vp, path[i + 1]);
+                    drawer.DrawLine(fromCenter, toCenter, goldColor);
+                }
             }
         }
 
-        // Draw circles at each plan step
-        for (int i = 0; i < state.PlanSteps.Count; i++)
+        // Draw circles at each move step
+        if (state.PlanSteps != null)
         {
-            var center = GetTileScreenCenter(vp, state.PlanSteps[i]);
-            float radius = 6f;
-            if (i == state.PlanSteps.Count - 1)
+            for (int i = 0; i < state.PlanSteps.Count; i++)
             {
-                // Final step: filled circle (brighter gold)
-                drawer.DrawFilledCircle(center, radius, brightGold);
-                drawer.DrawCircle(center, radius, goldColor);
-            }
-            else
-            {
-                // Intermediate step: outline only
-                drawer.DrawCircle(center, radius, goldColor);
+                var center = GetTileScreenCenter(vp, state.PlanSteps[i]);
+                float radius = 6f;
+                if (i == state.PlanSteps.Count - 1)
+                {
+                    drawer.DrawFilledCircle(center, radius, brightGold);
+                    drawer.DrawCircle(center, radius, goldColor);
+                }
+                else
+                {
+                    drawer.DrawCircle(center, radius, goldColor);
+                }
             }
         }
+
+        // Draw confirmed attack pairs in plan
+        if (state.PlanAttackPairs != null)
+        {
+            var attackColor = new Color(255, 80, 60);
+            foreach (var (source, target) in state.PlanAttackPairs)
+            {
+                var sourceCenter = GetTileScreenCenter(vp, source);
+                var targetCenter = GetTileScreenCenter(vp, target);
+                drawer.DrawLine(sourceCenter, targetCenter, attackColor);
+
+                float r = 8f;
+                drawer.DrawCircle(targetCenter, r, attackColor);
+                drawer.DrawLine(targetCenter - new Vector2(r, 0), targetCenter + new Vector2(r, 0), attackColor);
+                drawer.DrawLine(targetCenter - new Vector2(0, r), targetCenter + new Vector2(0, r), attackColor);
+            }
+        }
+    }
+
+    private void DrawPendingAttack(PrimitiveDrawer drawer, Viewport vp, InteractionState state)
+    {
+        if (state.PendingAttackTarget == null) return;
+
+        // Draw line from attack source (last move in plan, or selected unit) to target
+        Tile? sourceTile = null;
+        if (state.PlanSteps != null && state.PlanSteps.Count > 0)
+            sourceTile = state.PlanSteps[^1];
+        sourceTile ??= state.SelectedUnitTile;
+        if (sourceTile == null) return;
+
+        var sourceCenter = GetTileScreenCenter(vp, sourceTile);
+        var targetCenter = GetTileScreenCenter(vp, state.PendingAttackTarget);
+
+        var attackColor = new Color(255, 80, 60, 200);
+        drawer.DrawLine(sourceCenter, targetCenter, attackColor);
+
+        // Crosshair on target
+        float r = 8f;
+        drawer.DrawCircle(targetCenter, r, attackColor);
+        drawer.DrawLine(targetCenter - new Vector2(r, 0), targetCenter + new Vector2(r, 0), attackColor);
+        drawer.DrawLine(targetCenter - new Vector2(0, r), targetCenter + new Vector2(0, r), attackColor);
     }
 
     private void DrawAttackAnimation(PrimitiveDrawer drawer, Viewport vp, InteractionState state)
@@ -107,7 +167,7 @@ public class MapRenderer
         if (state.AnimationTimer <= 0 || state.AnimationSourceTile == null || state.AnimationTargetTile == null)
             return;
 
-        float t = state.AnimationTimer / 0.3f; // normalized 1->0
+        float t = state.AnimationTimer / EngineConfig.PlanStepDelay; // normalized 1->0
         var sourceCenter = GetTileScreenCenter(vp, state.AnimationSourceTile);
         var targetCenter = GetTileScreenCenter(vp, state.AnimationTargetTile);
 
@@ -134,10 +194,18 @@ public class MapRenderer
     {
         if (state.InnerShapeScale <= 0f || state.InnerShapeScale >= 1f) return;
 
+        // Fog-of-war: darken ramps on non-visible tiles
+        bool tileVisible = state.VisibleTiles == null || state.VisibleTiles.Contains(tile);
+        float visFactor = tileVisible ? 1f : 0.35f;
+
         foreach (int edge in tile.Ramps)
         {
             var neighbor = vp.Map.GetNeighbor(tile, edge);
             if (neighbor == null || neighbor.Elevation <= tile.Elevation) continue;
+
+            // Use darkest visibility of the two connected tiles
+            bool neighborVisible = state.VisibleTiles == null || state.VisibleTiles.Contains(neighbor);
+            float rampVis = Math.Min(visFactor, neighborVisible ? 1f : 0.35f);
 
             var lowerPts = vp.GetTileScreenPoints(tile);
             var raisedPts = vp.GetTileScreenPoints(neighbor);
@@ -157,7 +225,7 @@ public class MapRenderer
             Vector2 avgEdgeFrom = (lA + rB) / 2f;
             Vector2 avgEdgeTo = (lB + rA) / 2f;
             float rampAvgY = (lA.Y + lB.Y + rA.Y + rB.Y) / 4f;
-            Color rampColor = SurfaceColor(avgEdgeFrom, avgEdgeTo, rampAvgY, 0.95f, 0.05f, topColor, fogStrength, vp.ScreenHeight);
+            Color rampColor = SurfaceColor(avgEdgeFrom, avgEdgeTo, rampAvgY, 0.95f, 0.05f, topColor, fogStrength, vp.ScreenHeight, rampVis);
             drawer.DrawFilledQuad(lA, lB, rA, rB, rampColor);
 
             int prevEdge = (edge - 1 + ec) % ec;
@@ -166,7 +234,7 @@ public class MapRenderer
             {
                 var p = lowerPts[edge];
                 float triAvgY = (lA.Y + rB.Y + p.Y) / 3f;
-                Color endColor = SurfaceColor(rB, p, triAvgY, 0f, 1f, topColor, fogStrength, vp.ScreenHeight);
+                Color endColor = SurfaceColor(rB, p, triAvgY, 0f, 1f, topColor, fogStrength, vp.ScreenHeight, rampVis);
                 drawer.DrawFilledPolygon(new[] { lA, rB, p }, endColor);
             }
 
@@ -176,7 +244,7 @@ public class MapRenderer
             {
                 var p = lowerPts[(edge + 1) % ec];
                 float triAvgY = (lB.Y + rA.Y + p.Y) / 3f;
-                Color endColor = SurfaceColor(rA, p, triAvgY, 0f, 1f, topColor, fogStrength, vp.ScreenHeight);
+                Color endColor = SurfaceColor(rA, p, triAvgY, 0f, 1f, topColor, fogStrength, vp.ScreenHeight, rampVis);
                 drawer.DrawFilledPolygon(new[] { lB, rA, p }, endColor);
             }
         }
@@ -200,6 +268,12 @@ public class MapRenderer
             bool bothLower = n1.Elevation < tile.Elevation && n2.Elevation < tile.Elevation;
             bool bothHigher = n1.Elevation > tile.Elevation && n2.Elevation > tile.Elevation;
             if (!bothLower && !bothHigher) continue;
+
+            // Fog-of-war: use darkest visibility of the three tiles
+            bool tileVis = state.VisibleTiles == null || state.VisibleTiles.Contains(tile);
+            bool n1Vis = state.VisibleTiles == null || state.VisibleTiles.Contains(n1);
+            bool n2Vis = state.VisibleTiles == null || state.VisibleTiles.Contains(n2);
+            float cornerVisFactor = Math.Min(tileVis ? 1f : 0.35f, Math.Min(n1Vis ? 1f : 0.35f, n2Vis ? 1f : 0.35f));
 
             var tilePts = vp.GetTileScreenPoints(tile);
             Vector2 sharedPt;
@@ -246,7 +320,7 @@ public class MapRenderer
             }
 
             float cornerAvgY = (sharedPt.Y + n1Pt.Y + n2Pt.Y) / 3f;
-            Color triColor = SurfaceColor(n1Pt, n2Pt, cornerAvgY, 0.9f, 0.1f, topColor, fogStrength, vp.ScreenHeight);
+            Color triColor = SurfaceColor(n1Pt, n2Pt, cornerAvgY, 0.9f, 0.1f, topColor, fogStrength, vp.ScreenHeight, cornerVisFactor);
             drawer.DrawFilledPolygon(new[] { sharedPt, n1Pt, n2Pt }, triColor);
         }
     }
@@ -290,6 +364,11 @@ public class MapRenderer
         float normScreenY = Math.Clamp(screenCenterY / vp.ScreenHeight, 0f, 1f);
         float fogFactor = (1f - fogStrength) + fogStrength * normScreenY;
 
+        // Fog-of-war: darken non-visible tiles
+        bool tileVisible = state.VisibleTiles == null || state.VisibleTiles.Contains(tile);
+        if (!tileVisible)
+            fogFactor *= 0.35f;
+
         float elevBrightness = 1f + tile.Elevation * 0.08f;
         Color foggedTopColor = ApplyFog(ApplyBrightness(topColor, elevBrightness), fogFactor);
         var outlineColor = ApplyFog(new Color(0, 80, 0), fogFactor);
@@ -328,8 +407,8 @@ public class MapRenderer
         bool shouldFill = drawDepth;
         bool useInnerHighlight = state.InnerShapeScale > 0f && state.InnerShapeScale < 1f;
 
-        // Gameplay highlights — use inner shape only
-        if (state.AttackableTiles != null && state.AttackableTiles.Contains(tile))
+        // Gameplay highlights — only on visible tiles
+        if (tileVisible && state.AttackableTiles != null && state.AttackableTiles.Contains(tile))
         {
             if (useInnerHighlight)
             {
@@ -344,7 +423,7 @@ public class MapRenderer
                 shouldFill = true;
             }
         }
-        else if (state.ReachableTiles != null && state.ReachableTiles.Contains(tile))
+        else if (tileVisible && state.ReachableTiles != null && state.ReachableTiles.Contains(tile))
         {
             if (useInnerHighlight)
             {
@@ -359,7 +438,7 @@ public class MapRenderer
                 shouldFill = true;
             }
         }
-        else if (state.PlanAttackableTiles != null && state.PlanAttackableTiles.Contains(tile))
+        else if (tileVisible && state.PlanAttackableTiles != null && state.PlanAttackableTiles.Contains(tile))
         {
             if (useInnerHighlight)
             {
@@ -374,7 +453,7 @@ public class MapRenderer
                 shouldFill = true;
             }
         }
-        else if (state.PlanReachableTiles != null && state.PlanReachableTiles.Contains(tile))
+        else if (tileVisible && state.PlanReachableTiles != null && state.PlanReachableTiles.Contains(tile))
         {
             if (useInnerHighlight)
             {
@@ -390,7 +469,7 @@ public class MapRenderer
             }
         }
 
-        if (state.PlannedPath != null && state.PlannedPath.Contains(tile))
+        if (tileVisible && state.PlannedPath != null && state.PlannedPath.Contains(tile))
         {
             if (useInnerHighlight && shouldFill)
             {
@@ -406,7 +485,7 @@ public class MapRenderer
             }
         }
 
-        if (tile == state.SelectedUnitTile)
+        if (tileVisible && tile == state.SelectedUnitTile)
         {
             if (useInnerHighlight && shouldFill)
             {
@@ -431,7 +510,7 @@ public class MapRenderer
         if (shouldFill)
             drawer.DrawFilledPolygon(screenPoints, fillColor);
 
-        if (tile == state.HoverTile && state.InnerShapeScale > 0f && state.InnerShapeScale < 1f)
+        if (tileVisible && tile == state.HoverTile && state.InnerShapeScale > 0f && state.InnerShapeScale < 1f)
         {
             var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
 
@@ -449,10 +528,12 @@ public class MapRenderer
             drawer.DrawPolygonOutline(innerPoints, outlineColor);
         }
 
-        if (tile.Unit != null && !tile.Unit.IsFlying)
+        // Draw ground unit only on visible tiles
+        if (tile.Unit != null && !tile.Unit.IsFlying && tileVisible)
         {
+            bool isEnemy = state.VisibleTiles != null && tile.Unit.Team != state.CurrentTeam;
             var def = UnitDefs.Get(tile.Unit.Type);
-            UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor);
+            UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor, isEnemy, state.IsEditor);
         }
     }
 
@@ -497,7 +578,8 @@ public class MapRenderer
 
     private static Color SurfaceColor(Vector2 edgeFrom, Vector2 edgeTo, float avgY,
                                       float baseBrightness, float wallScale,
-                                      Color topColor, float fogStrength, float screenHeight)
+                                      Color topColor, float fogStrength, float screenHeight,
+                                      float visibilityFactor = 1f)
     {
         float edgeDx = edgeTo.X - edgeFrom.X;
         float edgeDy = edgeTo.Y - edgeFrom.Y;
@@ -508,7 +590,7 @@ public class MapRenderer
         float brightness = baseBrightness + wallScale * wallBrightness;
 
         float normScreenY = Math.Clamp(avgY / screenHeight, 0f, 1f);
-        float fogFactor = (1f - fogStrength) + fogStrength * normScreenY;
+        float fogFactor = ((1f - fogStrength) + fogStrength * normScreenY) * visibilityFactor;
 
         return ApplyFog(ApplyBrightness(topColor, brightness), fogFactor);
     }

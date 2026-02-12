@@ -13,15 +13,14 @@ public class ArrowUnitRenderer : UnitRenderer
         Vector2 wp, float r, Color fill, Color outline,
         UnitColorDef? colorDef, float fogFactor)
     {
-        float ar = r * 0.9f;
         var arrowPts = new[]
         {
-            W(wp.X, wp.Y - ar),              // tip
-            W(wp.X + ar, wp.Y + ar * 0.3f),  // right wing
-            W(wp.X + ar * 0.35f, wp.Y),      // right notch
-            W(wp.X, wp.Y + ar * 0.6f),       // tail center
-            W(wp.X - ar * 0.35f, wp.Y),      // left notch
-            W(wp.X - ar, wp.Y + ar * 0.3f),  // left wing
+            W(wp.X, wp.Y - r),              // tip
+            W(wp.X + r, wp.Y + r * 0.3f),   // right wing
+            W(wp.X + r * 0.35f, wp.Y),      // right notch
+            W(wp.X, wp.Y + r * 0.6f),       // tail center
+            W(wp.X - r * 0.35f, wp.Y),      // left notch
+            W(wp.X - r, wp.Y + r * 0.3f),   // left wing
         };
         drawer.DrawFilledPolygon(arrowPts, MapRenderer.ApplyFog(fill, fogFactor));
         drawer.DrawPolygonOutline(arrowPts, MapRenderer.ApplyFog(outline, fogFactor));

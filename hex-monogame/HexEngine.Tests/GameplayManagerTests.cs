@@ -1,3 +1,4 @@
+using HexEngine.Config;
 using HexEngine.Core;
 using HexEngine.Maps;
 
@@ -27,6 +28,13 @@ public class GameplayManagerTests
 
     private static HexGridMap CreateFlatMap()
         => new HexGridMap(10, 10, 100f, 0.7f, "flat");
+
+    private static void TickUntilDone(GameplayManager gm, int maxSteps = 20)
+    {
+        float dt = EngineConfig.PlanStepDelay + 0.01f;
+        for (int i = 0; i < maxSteps && gm.IsAnimating; i++)
+            gm.Tick(dt);
+    }
 
     [Fact]
     public void SelectUnit_SetsSelectedUnitTile()
@@ -68,11 +76,11 @@ public class GameplayManagerTests
     {
         var map = CreateFlatMap();
         var tile = map.Tiles[5][5];
-        tile.Unit = new Unit("Marine");
+        tile.Unit = new Unit("Marine") { Team = Team.Blue };
         tile.Unit.MovementPoints = 0;
 
-        var gm = new GameplayManager();
-        gm.EndTurn(map);
+        var gm = new GameplayManager(); // CurrentTeam starts as Red
+        gm.EndTurn(map); // switches to Blue, resets Blue units
 
         Assert.Equal(2, tile.Unit.MovementPoints);
     }
@@ -91,7 +99,8 @@ public class GameplayManagerTests
 
         gm.OnTileClicked(start, map);  // select
         gm.OnTileClicked(goal, map);   // plan path
-        gm.OnTileClicked(goal, map);   // confirm move
+        gm.OnTileClicked(goal, map);   // execute plan (click last move)
+        TickUntilDone(gm);
 
         Assert.Null(start.Unit);
         Assert.NotNull(goal.Unit);

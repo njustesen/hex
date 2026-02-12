@@ -23,8 +23,10 @@ public class UnitDef
     public int Damage { get; set; } = 2;
     public int Range { get; set; } = 1;
     public bool CanTargetAir { get; set; } = true;
+    public bool CanTargetGround { get; set; } = true;
     public int MaxAttacks { get; set; } = 1;
     public bool Flying { get; set; }
+    public int Sight { get; set; } = 3;
     public float Hover { get; set; }
     public string Shape { get; set; } = "circle";
     public float Scale { get; set; } = 0.25f;
