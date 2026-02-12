@@ -1,0 +1,410 @@
+{
+  "mapType": "hex",
+  "cols": 16,
+  "rows": 16,
+  "hexRadius": 100,
+  "hexVerticalScale": 0.7,
+  "hexOrientation": "flat",
+  "tileWidth": 100,
+  "tileHeight": 100,
+  "tiles": [
+    {
+      "x": 7,
+      "y": 2,
+      "elevation": 1
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "elevation": 1
+    },
+    {
+      "x": 6,
+      "y": 3,
+      "elevation": 1
+    },
+    {
+      "x": 7,
+      "y": 3,
+      "elevation": 2
+    },
+    {
+      "x": 8,
+      "y": 3,
+      "elevation": 1
+    },
+    {
+      "x": 9,
+      "y": 3,
+      "elevation": 1
+    },
+    {
+      "x": 4,
+      "y": 4,
+      "elevation": 1
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "elevation": 2
+    },
+    {
+      "x": 6,
+      "y": 4,
+      "elevation": 2
+    },
+    {
+      "x": 7,
+      "y": 4,
+      "elevation": 3
+    },
+    {
+      "x": 8,
+      "y": 4,
+      "elevation": 2
+    },
+    {
+      "x": 9,
+      "y": 4,
+      "elevation": 2
+    },
+    {
+      "x": 10,
+      "y": 4,
+      "elevation": 1
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "elevation": 2
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "elevation": 3
+    },
+    {
+      "x": 6,
+      "y": 5,
+      "elevation": 3
+    },
+    {
+      "x": 7,
+      "y": 5,
+      "elevation": 2
+    },
+    {
+      "x": 8,
+      "y": 5,
+      "elevation": 3
+    },
+    {
+      "x": 9,
+      "y": 5,
+      "elevation": 2
+    },
+    {
+      "x": 10,
+      "y": 5,
+      "elevation": 1
+    },
+    {
+      "x": 4,
+      "y": 6,
+      "elevation": 2
+    },
+    {
+      "x": 5,
+      "y": 6,
+      "elevation": 2
+    },
+    {
+      "x": 6,
+      "y": 6,
+      "elevation": 2
+    },
+    {
+      "x": 7,
+      "y": 6,
+      "elevation": 2
+    },
+    {
+      "x": 8,
+      "y": 6,
+      "elevation": 2
+    },
+    {
+      "x": 9,
+      "y": 6,
+      "elevation": 2
+    },
+    {
+      "x": 10,
+      "y": 6,
+      "elevation": 1
+    },
+    {
+      "x": 4,
+      "y": 7,
+      "elevation": 2
+    },
+    {
+      "x": 5,
+      "y": 7,
+      "elevation": 2
+    },
+    {
+      "x": 6,
+      "y": 7,
+      "elevation": 2
+    },
+    {
+      "x": 7,
+      "y": 7,
+      "elevation": 2,
+      "ramps": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "x": 8,
+      "y": 7,
+      "elevation": 2,
+      "ramps": [
+        1
+      ]
+    },
+    {
+      "x": 9,
+      "y": 7,
+      "elevation": 2,
+      "ramps": [
+        1,
+        2
+      ]
+    },
+    {
+      "x": 10,
+      "y": 7,
+      "elevation": 1
+    },
+    {
+      "x": 11,
+      "y": 7,
+      "elevation": 1,
+      "ramps": [
+        0
+      ]
+    },
+    {
+      "x": 4,
+      "y": 8,
+      "elevation": 1
+    },
+    {
+      "x": 5,
+      "y": 8,
+      "elevation": 1
+    },
+    {
+      "x": 6,
+      "y": 8,
+      "elevation": 1,
+      "ramps": [
+        5
+      ]
+    },
+    {
+      "x": 7,
+      "y": 8,
+      "elevation": 1,
+      "ramps": [
+        4
+      ]
+    },
+    {
+      "x": 8,
+      "y": 8,
+      "elevation": 1,
+      "ramps": [
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "x": 9,
+      "y": 8,
+      "elevation": 1,
+      "ramps": [
+        4
+      ]
+    },
+    {
+      "x": 10,
+      "y": 8,
+      "elevation": 1
+    },
+    {
+      "x": 11,
+      "y": 8,
+      "elevation": 1
+    },
+    {
+      "x": 12,
+      "y": 8,
+      "elevation": 0,
+      "ramps": [
+        3
+      ]
+    },
+    {
+      "x": 2,
+      "y": 9,
+      "elevation": 0,
+      "unit": "Marine"
+    },
+    {
+      "x": 3,
+      "y": 9,
+      "elevation": 0,
+      "unit": "Marine"
+    },
+    {
+      "x": 4,
+      "y": 9,
+      "elevation": 0,
+      "unit": "Marine"
+    },
+    {
+      "x": 5,
+      "y": 9,
+      "elevation": 1,
+      "unit": "Tank"
+    },
+    {
+      "x": 6,
+      "y": 9,
+      "elevation": 1,
+      "ramps": [
+        1
+      ],
+      "unit": "Tank"
+    },
+    {
+      "x": 7,
+      "y": 9,
+      "elevation": 1,
+      "ramps": [
+        1,
+        2
+      ],
+      "unit": "Tank"
+    },
+    {
+      "x": 8,
+      "y": 9,
+      "elevation": 1
+    },
+    {
+      "x": 9,
+      "y": 9,
+      "elevation": 1
+    },
+    {
+      "x": 10,
+      "y": 9,
+      "elevation": 1
+    },
+    {
+      "x": 11,
+      "y": 9,
+      "elevation": 1
+    },
+    {
+      "x": 12,
+      "y": 9,
+      "elevation": 1
+    },
+    {
+      "x": 6,
+      "y": 10,
+      "elevation": 0,
+      "ramps": [
+        4,
+        5
+      ]
+    },
+    {
+      "x": 7,
+      "y": 10,
+      "elevation": 0,
+      "ramps": [
+        4
+      ]
+    },
+    {
+      "x": 8,
+      "y": 10,
+      "elevation": 1,
+      "unit": "Fighter"
+    },
+    {
+      "x": 9,
+      "y": 10,
+      "elevation": 1,
+      "unit": "Fighter"
+    },
+    {
+      "x": 10,
+      "y": 10,
+      "elevation": 1
+    },
+    {
+      "x": 11,
+      "y": 10,
+      "elevation": 1
+    },
+    {
+      "x": 12,
+      "y": 10,
+      "elevation": 1
+    },
+    {
+      "x": 9,
+      "y": 11,
+      "elevation": 0,
+      "ramps": [
+        5
+      ]
+    },
+    {
+      "x": 10,
+      "y": 11,
+      "elevation": 1,
+      "ramps": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "x": 11,
+      "y": 11,
+      "elevation": 0,
+      "ramps": [
+        3
+      ]
+    },
+    {
+      "x": 10,
+      "y": 12,
+      "elevation": 0,
+      "ramps": [
+        4
+      ]
+    }
+  ]
+}

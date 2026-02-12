@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using HexEngine.Core;
 using HexEngine.Maps;
 using HexEngine.Editor;
 
@@ -137,5 +138,26 @@ public class MapSerializerTests : IDisposable
         var neighbor = loaded.GetNeighbor(loaded.Tiles[3][4], 0)!;
         int opposite = loaded.GetOppositeEdge(0);
         Assert.Contains(opposite, neighbor.Ramps);
+    }
+
+    [Fact]
+    public void RoundTrip_Units_Preserved()
+    {
+        var map = new HexGridMap(10, 10, 100f, 0.7f, "flat");
+        map.Tiles[1][2].Unit = new Unit(UnitType.Marine);
+        map.Tiles[3][4].Unit = new Unit(UnitType.Tank);
+        map.Tiles[5][6].Unit = new Unit(UnitType.Fighter);
+
+        var path = Path.Combine(_testDir, "test_units.json");
+        MapSerializer.Save(map, path);
+        var loaded = MapSerializer.Load(path);
+
+        Assert.NotNull(loaded.Tiles[1][2].Unit);
+        Assert.Equal(UnitType.Marine, loaded.Tiles[1][2].Unit!.Type);
+        Assert.NotNull(loaded.Tiles[3][4].Unit);
+        Assert.Equal(UnitType.Tank, loaded.Tiles[3][4].Unit!.Type);
+        Assert.NotNull(loaded.Tiles[5][6].Unit);
+        Assert.Equal(UnitType.Fighter, loaded.Tiles[5][6].Unit!.Type);
+        Assert.Null(loaded.Tiles[0][0].Unit);
     }
 }

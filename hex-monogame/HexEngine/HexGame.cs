@@ -30,6 +30,7 @@ public class HexGame : Game
     private MapRenderer _renderer = new();
     private InteractionState _interaction = new();
     private Toolbar _toolbar = new();
+    private GameplayManager _gameplay = new();
     private SpriteFont _debugFont = null!;
     private Texture2D _pixel = null!;
     private int _currentMapMode = 1;
@@ -168,6 +169,7 @@ public class HexGame : Game
         _toolbar.Update(_inputManager);
         if (_toolbar.DebugToggled) _debugMenu.Visible = !_debugMenu.Visible;
         if (_toolbar.EditorToggled) _editor.Visible = !_editor.Visible;
+        if (_toolbar.EndTurnPressed) _gameplay.EndTurn(_map);
 
         _debugMenu.Update(_inputManager);
 
@@ -194,7 +196,19 @@ public class HexGame : Game
         _viewport.Update(seconds, _inputManager, _interaction);
 
         bool uiConsumed = _toolbar.ConsumesClick || _debugMenu.ConsumesClick;
-        _editor.Update(_inputManager, _viewport, _interaction, uiConsumed);
+
+        if (_editor.Visible)
+        {
+            _gameplay.Deselect();
+            _gameplay.Update(_interaction);
+            _editor.Update(_inputManager, _viewport, _interaction, uiConsumed);
+        }
+        else
+        {
+            if (!uiConsumed && _viewport.LastClickedTile != null)
+                _gameplay.OnTileClicked(_viewport.LastClickedTile, _map);
+            _gameplay.Update(_interaction);
+        }
     }
 
     protected override void Draw(GameTime gameTime)

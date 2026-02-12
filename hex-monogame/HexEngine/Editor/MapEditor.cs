@@ -13,19 +13,21 @@ using HexEngine.Rendering;
 
 namespace HexEngine.Editor;
 
-public enum EditorTool { Elevation, Ramp }
+public enum EditorTool { Elevation, Ramp, Unit }
 
 public class MapEditor : Panel
 {
     public EditorTool CurrentTool { get; private set; } = EditorTool.Elevation;
 
+    private UnitType _selectedUnitType = UnitType.Marine;
     private string? _lastSavePath;
     private string? _statusMessage;
     private float _statusTimer;
 
     // Cached panel layout
     private float _panelX, _panelY, _panelWidth, _panelHeight;
-    private Rectangle? _elevBtn, _rampBtn;
+    private Rectangle? _elevBtn, _rampBtn, _unitBtn;
+    private Rectangle? _marineBtn, _tankBtn, _fighterBtn;
     private Rectangle? _saveBtn;
 
     public void Update(InputManager input, Viewport viewport, InteractionState state, bool externalClickConsumed)
@@ -40,6 +42,18 @@ public class MapEditor : Panel
             CurrentTool = EditorTool.Elevation;
         if (input.RPressed)
             CurrentTool = EditorTool.Ramp;
+        if (input.UPressed)
+            CurrentTool = EditorTool.Unit;
+
+        // Cycle unit type with [ / ]
+        if (CurrentTool == EditorTool.Unit)
+        {
+            var types = (UnitType[])Enum.GetValues(typeof(UnitType));
+            if (input.BracketRightPressed)
+                _selectedUnitType = types[((int)_selectedUnitType + 1) % types.Length];
+            if (input.BracketLeftPressed)
+                _selectedUnitType = types[((int)_selectedUnitType - 1 + types.Length) % types.Length];
+        }
 
         // Panel button clicks
         if (input.MouseReleased && !externalClickConsumed)
@@ -54,6 +68,14 @@ public class MapEditor : Panel
                     CurrentTool = EditorTool.Elevation;
                 if (_rampBtn.HasValue && InRect(mx, my, _rampBtn.Value))
                     CurrentTool = EditorTool.Ramp;
+                if (_unitBtn.HasValue && InRect(mx, my, _unitBtn.Value))
+                    CurrentTool = EditorTool.Unit;
+                if (_marineBtn.HasValue && InRect(mx, my, _marineBtn.Value))
+                    _selectedUnitType = UnitType.Marine;
+                if (_tankBtn.HasValue && InRect(mx, my, _tankBtn.Value))
+                    _selectedUnitType = UnitType.Tank;
+                if (_fighterBtn.HasValue && InRect(mx, my, _fighterBtn.Value))
+                    _selectedUnitType = UnitType.Fighter;
                 if (_saveBtn.HasValue && InRect(mx, my, _saveBtn.Value))
                     DoSave(viewport);
             }
@@ -67,8 +89,10 @@ public class MapEditor : Panel
         bool clickConsumed = externalClickConsumed || ConsumesClick;
         if (CurrentTool == EditorTool.Elevation)
             DoElevation(input, viewport, state, clickConsumed);
-        else
+        else if (CurrentTool == EditorTool.Ramp)
             DoRamp(input, viewport, state, clickConsumed);
+        else if (CurrentTool == EditorTool.Unit)
+            DoUnit(input, state, clickConsumed);
 
         // Ctrl+S save shortcut
         if (input.CtrlS)
@@ -76,6 +100,18 @@ public class MapEditor : Panel
 
         if (_statusTimer > 0)
             _statusTimer -= 1f / 60f;
+    }
+
+    private void DoUnit(InputManager input, InteractionState state, bool clickConsumed)
+    {
+        if (state.HoverTile == null) return;
+        if (clickConsumed) return;
+
+        if (input.MouseReleased)
+            state.HoverTile.Unit = new Unit(_selectedUnitType);
+
+        if (input.RightMouseReleased)
+            state.HoverTile.Unit = null;
     }
 
     private void DoSave(Viewport viewport)
@@ -180,6 +216,13 @@ public class MapEditor : Panel
         // Row 1: Tool buttons
         float elevBtnW = font.MeasureString("Elev").X + Padding;
         float rampBtnW = font.MeasureString("Ramp").X + Padding;
+        float unitBtnW = font.MeasureString("Unit").X + Padding;
+
+        // Unit type sub-row widths
+        float marineBtnW = font.MeasureString("Marine").X + Padding;
+        float tankBtnW = font.MeasureString("Tank").X + Padding;
+        float fighterBtnW = font.MeasureString("Fighter").X + Padding;
+        float unitTypeRowW = marineBtnW + BtnGap + tankBtnW + BtnGap + fighterBtnW;
 
         // Row 2: Tile info
         string tileInfo = state.HoverTile != null
@@ -190,16 +233,23 @@ public class MapEditor : Panel
         float saveBtnW = font.MeasureString("Save").X + Padding;
 
         // Row 4: Help text
-        string helpText = CurrentTool == EditorTool.Elevation
-            ? "LMB: Raise | RMB: Lower"
-            : "LMB: Toggle Ramp";
+        string helpText = CurrentTool switch
+        {
+            EditorTool.Elevation => "LMB: Raise | RMB: Lower",
+            EditorTool.Ramp => "LMB: Toggle Ramp",
+            EditorTool.Unit => $"LMB: Place {_selectedUnitType} | RMB: Remove | [/]: Cycle",
+            _ => ""
+        };
 
         // Compute panel width
-        float maxWidth = Math.Max(elevBtnW + BtnGap + rampBtnW,
+        float toolRowW = elevBtnW + BtnGap + rampBtnW + BtnGap + unitBtnW;
+        float maxWidth = Math.Max(toolRowW,
+                         Math.Max(CurrentTool == EditorTool.Unit ? unitTypeRowW : 0,
                          Math.Max(font.MeasureString(tileInfo).X,
-                         Math.Max(saveBtnW, font.MeasureString(helpText).X)));
+                         Math.Max(saveBtnW, font.MeasureString(helpText).X))));
 
         int rows = 4;
+        if (CurrentTool == EditorTool.Unit) rows++;
         if (_statusTimer > 0) rows++;
         float panelWidth = maxWidth + Padding * 2;
         float panelHeight = rows * RowHeight + Padding * 2;
@@ -217,11 +267,35 @@ public class MapEditor : Panel
         // Row 1: Tool buttons
         _elevBtn = new Rectangle((int)(x + Padding), (int)cy, (int)elevBtnW, (int)BtnHeight);
         _rampBtn = new Rectangle((int)(x + Padding + elevBtnW + BtnGap), (int)cy, (int)rampBtnW, (int)BtnHeight);
+        _unitBtn = new Rectangle((int)(x + Padding + elevBtnW + BtnGap + rampBtnW + BtnGap), (int)cy, (int)unitBtnW, (int)BtnHeight);
         DrawBtn(spriteBatch, pixel, font, _elevBtn.Value, "Elev",
             CurrentTool == EditorTool.Elevation ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
         DrawBtn(spriteBatch, pixel, font, _rampBtn.Value, "Ramp",
             CurrentTool == EditorTool.Ramp ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
+        DrawBtn(spriteBatch, pixel, font, _unitBtn.Value, "Unit",
+            CurrentTool == EditorTool.Unit ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
         cy += RowHeight;
+
+        // Row 1b: Unit type sub-row (only when Unit tool active)
+        if (CurrentTool == EditorTool.Unit)
+        {
+            _marineBtn = new Rectangle((int)(x + Padding), (int)cy, (int)marineBtnW, (int)BtnHeight);
+            _tankBtn = new Rectangle((int)(x + Padding + marineBtnW + BtnGap), (int)cy, (int)tankBtnW, (int)BtnHeight);
+            _fighterBtn = new Rectangle((int)(x + Padding + marineBtnW + BtnGap + tankBtnW + BtnGap), (int)cy, (int)fighterBtnW, (int)BtnHeight);
+            DrawBtn(spriteBatch, pixel, font, _marineBtn.Value, "Marine",
+                _selectedUnitType == UnitType.Marine ? new Color(40, 80, 100, 200) : new Color(60, 60, 60, 200));
+            DrawBtn(spriteBatch, pixel, font, _tankBtn.Value, "Tank",
+                _selectedUnitType == UnitType.Tank ? new Color(40, 80, 100, 200) : new Color(60, 60, 60, 200));
+            DrawBtn(spriteBatch, pixel, font, _fighterBtn.Value, "Fighter",
+                _selectedUnitType == UnitType.Fighter ? new Color(40, 80, 100, 200) : new Color(60, 60, 60, 200));
+            cy += RowHeight;
+        }
+        else
+        {
+            _marineBtn = null;
+            _tankBtn = null;
+            _fighterBtn = null;
+        }
 
         // Row 2: Tile info
         spriteBatch.DrawString(font, tileInfo, new Vector2(x + Padding, cy), Color.White);

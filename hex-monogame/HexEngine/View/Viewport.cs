@@ -29,6 +29,7 @@ public class Viewport
     public Camera Cam { get; }
     public float ZoomLevel { get; set; }
     public bool Moved { get; set; }
+    public Tile? LastClickedTile { get; private set; }
     protected InteractionState State { get; set; } = new();
 
     public float Upp { get; }
@@ -174,6 +175,7 @@ public class Viewport
 
     public void Update(float seconds, InputManager? inputManager = null, InteractionState? state = null)
     {
+        LastClickedTile = null;
         if (state != null) State = state;
         Cam.Update(seconds);
 
@@ -339,6 +341,7 @@ public class Viewport
             if (tile != null)
             {
                 State.SelectedTile = tile;
+                LastClickedTile = tile;
                 return true;
             }
         }

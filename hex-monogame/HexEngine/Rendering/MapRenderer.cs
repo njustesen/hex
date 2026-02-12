@@ -226,11 +226,32 @@ public class MapRenderer
             }
         }
 
+        // Determine fill color with gameplay highlights
         Color fillColor = foggedTopColor;
-        if (tile == state.SelectedTile)
-            fillColor = ApplyFog(new Color(40, 120, 40), fogFactor);
+        bool shouldFill = drawDepth;
 
-        if (drawDepth || tile == state.SelectedTile)
+        if (state.ReachableTiles != null && state.ReachableTiles.Contains(tile))
+        {
+            fillColor = ApplyFog(new Color(60, 60, 160), fogFactor);
+            shouldFill = true;
+        }
+        if (state.PlannedPath != null && state.PlannedPath.Contains(tile))
+        {
+            fillColor = ApplyFog(new Color(180, 140, 40), fogFactor);
+            shouldFill = true;
+        }
+        if (tile == state.SelectedUnitTile)
+        {
+            fillColor = ApplyFog(new Color(160, 160, 40), fogFactor);
+            shouldFill = true;
+        }
+        if (tile == state.SelectedTile)
+        {
+            fillColor = ApplyFog(new Color(40, 120, 40), fogFactor);
+            shouldFill = true;
+        }
+
+        if (shouldFill)
             drawer.DrawFilledPolygon(screenPoints, fillColor);
 
         if (tile == state.HoverTile && state.InnerShapeScale > 0f && state.InnerShapeScale < 1f)
@@ -267,16 +288,110 @@ public class MapRenderer
         }
 
         if (tile.Unit != null)
+            DrawUnit(drawer, vp, tile, screenPoints, fogFactor);
+    }
+
+    private static void DrawUnit(PrimitiveDrawer drawer, Viewport vp, Tile tile,
+                                   Vector2[] screenPoints, float fogFactor)
+    {
+        int vertexCount = screenPoints.Length;
+        Vector2 center = Vector2.Zero;
+        for (int i = 0; i < vertexCount; i++)
+            center += screenPoints[i];
+        center /= vertexCount;
+
+        float s = 0.25f;
+
+        switch (tile.Unit!.Type)
         {
-            float unitSize = 50f;
-            var unitPoints = new Vector2[]
+            case UnitType.Marine:
             {
-                vp.WorldToSurface(new Vector2(tile.Pos.X - unitSize / 2, tile.Pos.Y - unitSize / 2)),
-                vp.WorldToSurface(new Vector2(tile.Pos.X + unitSize / 2, tile.Pos.Y - unitSize / 2)),
-                vp.WorldToSurface(new Vector2(tile.Pos.X + unitSize / 2, tile.Pos.Y + unitSize / 2)),
-                vp.WorldToSurface(new Vector2(tile.Pos.X - unitSize / 2, tile.Pos.Y + unitSize / 2)),
-            };
-            drawer.DrawFilledPolygon(unitPoints, ApplyFog(new Color(200, 0, 0), fogFactor));
+                var top = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y - tile.Height * s));
+                var right = vp.WorldToSurface(new Vector2(tile.Pos.X + tile.Width * s, tile.Pos.Y));
+                var bottom = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y + tile.Height * s));
+                var left = vp.WorldToSurface(new Vector2(tile.Pos.X - tile.Width * s, tile.Pos.Y));
+                var pts = new[] { top, right, bottom, left };
+                drawer.DrawFilledPolygon(pts, ApplyFog(new Color(30, 160, 30), fogFactor));
+                drawer.DrawPolygonOutline(pts, ApplyFog(new Color(15, 100, 15), fogFactor));
+                break;
+            }
+            case UnitType.Tank:
+            {
+                float bw = tile.Width * s;
+                float bh = tile.Height * s * 0.7f;
+                var bodyPts = new[]
+                {
+                    vp.WorldToSurface(new Vector2(tile.Pos.X - bw, tile.Pos.Y - bh)),
+                    vp.WorldToSurface(new Vector2(tile.Pos.X + bw, tile.Pos.Y - bh)),
+                    vp.WorldToSurface(new Vector2(tile.Pos.X + bw, tile.Pos.Y + bh)),
+                    vp.WorldToSurface(new Vector2(tile.Pos.X - bw, tile.Pos.Y + bh)),
+                };
+                drawer.DrawFilledPolygon(bodyPts, ApplyFog(new Color(100, 120, 140), fogFactor));
+                drawer.DrawPolygonOutline(bodyPts, ApplyFog(new Color(60, 75, 90), fogFactor));
+
+                float tw = bw * 0.5f;
+                float th = bh * 0.6f;
+                var turretPts = new[]
+                {
+                    vp.WorldToSurface(new Vector2(tile.Pos.X - tw, tile.Pos.Y - th)),
+                    vp.WorldToSurface(new Vector2(tile.Pos.X + tw, tile.Pos.Y - th)),
+                    vp.WorldToSurface(new Vector2(tile.Pos.X + tw, tile.Pos.Y + th)),
+                    vp.WorldToSurface(new Vector2(tile.Pos.X - tw, tile.Pos.Y + th)),
+                };
+                drawer.DrawFilledPolygon(turretPts, ApplyFog(new Color(140, 160, 180), fogFactor));
+                drawer.DrawPolygonOutline(turretPts, ApplyFog(new Color(80, 100, 120), fogFactor));
+                break;
+            }
+            case UnitType.Fighter:
+            {
+                float ss = s * 0.6f;
+                var sTop = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y - tile.Height * ss));
+                var sRight = vp.WorldToSurface(new Vector2(tile.Pos.X + tile.Width * ss, tile.Pos.Y));
+                var sBottom = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y + tile.Height * ss));
+                var sLeft = vp.WorldToSurface(new Vector2(tile.Pos.X - tile.Width * ss, tile.Pos.Y));
+                drawer.DrawFilledPolygon(new[] { sTop, sRight, sBottom, sLeft }, new Color(0, 0, 0, 80));
+
+                float floatOffset = 20f;
+                var fTop = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y - tile.Height * s));
+                var fLeft = vp.WorldToSurface(new Vector2(tile.Pos.X - tile.Width * s, tile.Pos.Y + tile.Height * s * 0.5f));
+                var fRight = vp.WorldToSurface(new Vector2(tile.Pos.X + tile.Width * s, tile.Pos.Y + tile.Height * s * 0.5f));
+                var triPts = new[]
+                {
+                    new Vector2(fTop.X, fTop.Y - floatOffset),
+                    new Vector2(fRight.X, fRight.Y - floatOffset),
+                    new Vector2(fLeft.X, fLeft.Y - floatOffset),
+                };
+                drawer.DrawFilledPolygon(triPts, ApplyFog(new Color(220, 200, 50), fogFactor));
+                drawer.DrawPolygonOutline(triPts, ApplyFog(new Color(160, 140, 30), fogFactor));
+                break;
+            }
+        }
+
+        // MP bar below unit
+        DrawMpBar(drawer, center, tile.Unit, fogFactor);
+    }
+
+    private static void DrawMpBar(PrimitiveDrawer drawer, Vector2 center, Unit unit, float fogFactor)
+    {
+        int max = unit.MaxMovementPoints;
+        if (max <= 0) return;
+
+        float barWidth = max * 6f + (max - 1) * 1f;
+        float barHeight = 4f;
+        float barY = center.Y + 12f;
+        float barX = center.X - barWidth / 2f;
+
+        // Dark background
+        drawer.DrawFilledRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2,
+            ApplyFog(new Color(20, 20, 20), fogFactor));
+
+        for (int i = 0; i < max; i++)
+        {
+            float segX = barX + i * 7f;
+            Color segColor = i < unit.MovementPoints
+                ? ApplyFog(new Color(40, 180, 40), fogFactor)
+                : ApplyFog(new Color(80, 30, 30), fogFactor);
+            drawer.DrawFilledRect(segX, barY, 6f, barHeight, segColor);
         }
     }
 

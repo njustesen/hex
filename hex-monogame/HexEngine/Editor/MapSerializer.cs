@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using HexEngine.Maps;
 using HexEngine.Tiles;
 using HexEngine.Config;
+using HexEngine.Core;
 
 namespace HexEngine.Editor;
 
@@ -50,11 +51,13 @@ public static class MapSerializer
             for (int x = 0; x < map.Cols; x++)
             {
                 var tile = map.Tiles[y][x];
-                if (tile.Elevation > 0 || tile.Ramps.Count > 0)
+                if (tile.Elevation > 0 || tile.Ramps.Count > 0 || tile.Unit != null)
                 {
                     var td = new TileData { X = x, Y = y, Elevation = tile.Elevation };
                     if (tile.Ramps.Count > 0)
                         td.Ramps = tile.Ramps.OrderBy(r => r).ToList();
+                    if (tile.Unit != null)
+                        td.UnitType = tile.Unit.Type.ToString();
                     data.Tiles.Add(td);
                 }
             }
@@ -100,6 +103,15 @@ public static class MapSerializer
                 var tile = map.Tiles[td.Y][td.X];
                 foreach (int edge in td.Ramps)
                     map.AddRamp(tile, edge);
+            }
+
+            // Third pass: restore units
+            foreach (var td in data.Tiles)
+            {
+                if (td.UnitType == null || td.Y < 0 || td.Y >= map.Rows || td.X < 0 || td.X >= map.Cols)
+                    continue;
+                if (Enum.TryParse<UnitType>(td.UnitType, out var unitType))
+                    map.Tiles[td.Y][td.X].Unit = new Unit(unitType);
             }
         }
 
@@ -169,5 +181,8 @@ public static class MapSerializer
 
         [JsonPropertyName("ramps")]
         public List<int>? Ramps { get; set; }
+
+        [JsonPropertyName("unit")]
+        public string? UnitType { get; set; }
     }
 }

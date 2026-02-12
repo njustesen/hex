@@ -26,6 +26,7 @@ public class InputManager
     public bool DownPressed { get; private set; }
     public bool LeftPressed { get; private set; }
     public bool RightPressed { get; private set; }
+    public bool UPressed { get; private set; }
     public bool BracketLeftPressed { get; private set; }
     public bool BracketRightPressed { get; private set; }
 
@@ -84,6 +85,7 @@ public class InputManager
         F2Pressed = keyState.IsKeyDown(Keys.F2) && !_prevKeyState.IsKeyDown(Keys.F2);
         RPressed = keyState.IsKeyDown(Keys.R) && !_prevKeyState.IsKeyDown(Keys.R);
         EPressed = keyState.IsKeyDown(Keys.E) && !_prevKeyState.IsKeyDown(Keys.E);
+        UPressed = keyState.IsKeyDown(Keys.U) && !_prevKeyState.IsKeyDown(Keys.U);
 
         // Ctrl+S
         CtrlS = (keyState.IsKeyDown(Keys.LeftControl) || keyState.IsKeyDown(Keys.RightControl))
