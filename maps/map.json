@@ -264,25 +264,29 @@
       "x": 2,
       "y": 9,
       "elevation": 0,
-      "unit": "Marine"
+      "unit": "Marine",
+      "unitTeam": "Red"
     },
     {
       "x": 3,
       "y": 9,
       "elevation": 0,
-      "unit": "Marine"
+      "unit": "Marine",
+      "unitTeam": "Red"
     },
     {
       "x": 4,
       "y": 9,
       "elevation": 0,
-      "unit": "Marine"
+      "unit": "Marine",
+      "unitTeam": "Red"
     },
     {
       "x": 5,
       "y": 9,
       "elevation": 1,
-      "unit": "Tank"
+      "unit": "Tank",
+      "unitTeam": "Red"
     },
     {
       "x": 6,
@@ -291,7 +295,8 @@
       "ramps": [
         1
       ],
-      "unit": "Tank"
+      "unit": "Tank",
+      "unitTeam": "Red"
     },
     {
       "x": 7,
@@ -301,7 +306,8 @@
         1,
         2
       ],
-      "unit": "Tank"
+      "unit": "Tank",
+      "unitTeam": "Red"
     },
     {
       "x": 8,
@@ -329,13 +335,22 @@
       "elevation": 1
     },
     {
+      "x": 5,
+      "y": 10,
+      "elevation": 0,
+      "unit": "Battlecruiser",
+      "unitTeam": "Red"
+    },
+    {
       "x": 6,
       "y": 10,
       "elevation": 0,
       "ramps": [
         4,
         5
-      ]
+      ],
+      "unit": "Battlecruiser",
+      "unitTeam": "Red"
     },
     {
       "x": 7,
@@ -349,13 +364,15 @@
       "x": 8,
       "y": 10,
       "elevation": 1,
-      "unit": "Fighter"
+      "unit": "Fighter",
+      "unitTeam": "Red"
     },
     {
       "x": 9,
       "y": 10,
       "elevation": 1,
-      "unit": "Fighter"
+      "unit": "Fighter",
+      "unitTeam": "Red"
     },
     {
       "x": 10,
@@ -397,6 +414,13 @@
       "ramps": [
         3
       ]
+    },
+    {
+      "x": 6,
+      "y": 12,
+      "elevation": 0,
+      "unit": "Battlecruiser",
+      "unitTeam": "Red"
     },
     {
       "x": 10,

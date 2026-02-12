@@ -1,0 +1,104 @@
+units:
+  Marine:
+    movement: 2
+    health: 3
+    armor: 0
+    damage: 2
+    range: 1
+    canTargetAir: true
+    maxAttacks: 1
+    flying: false
+    shape: circle
+    size: 0.3
+    colors:
+      red:
+        fill: [180, 40, 40]
+        outline: [120, 20, 20]
+      blue:
+        fill: [40, 80, 180]
+        outline: [20, 50, 120]
+
+  Tank:
+    movement: 3
+    health: 5
+    armor: 1
+    damage: 4
+    range: 3
+    canTargetAir: false
+    maxAttacks: 1
+    flying: false
+    shape: rect_turret
+    size: 0.35
+    colors:
+      red:
+        fill: [140, 50, 50]
+        outline: [90, 30, 30]
+        turretFill: [180, 70, 70]
+        turretOutline: [110, 40, 40]
+      blue:
+        fill: [50, 80, 140]
+        outline: [30, 50, 90]
+        turretFill: [70, 110, 180]
+        turretOutline: [40, 70, 110]
+
+  Fighter:
+    movement: 4
+    health: 4
+    armor: 1
+    damage: 3
+    range: 2
+    canTargetAir: true
+    maxAttacks: 1
+    flying: true
+    shape: arrow
+    size: 0.4
+    colors:
+      red:
+        fill: [200, 100, 40]
+        outline: [140, 60, 20]
+      blue:
+        fill: [40, 140, 200]
+        outline: [20, 90, 140]
+
+  LandSpeeder:
+    movement: 5
+    health: 3
+    armor: 1
+    damage: 2
+    range: 1
+    canTargetAir: false
+    maxAttacks: 2
+    flying: false
+    hover: 0.12
+    shape: triangle
+    size: 0.3
+    colors:
+      red:
+        fill: [190, 80, 40]
+        outline: [130, 50, 20]
+      blue:
+        fill: [40, 120, 190]
+        outline: [20, 80, 130]
+
+  Battlecruiser:
+    movement: 3
+    health: 7
+    armor: 2
+    damage: 4
+    range: 4
+    canTargetAir: false
+    maxAttacks: 2
+    flying: true
+    shape: hexagon
+    size: 0.6
+    colors:
+      red:
+        fill: [160, 50, 60]
+        outline: [100, 30, 35]
+        turretFill: [200, 70, 80]
+        turretOutline: [120, 40, 45]
+      blue:
+        fill: [50, 60, 160]
+        outline: [30, 35, 100]
+        turretFill: [70, 80, 200]
+        turretOutline: [40, 45, 120]

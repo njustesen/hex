@@ -1,0 +1,17 @@
+{
+  "Width": 1200,
+  "Height": 600,
+  "Fullscreen": false,
+  "MoveSpeed": 0.5,
+  "ZoomSpeed": 4,
+  "DepthMultiplier": 0.10000001,
+  "TileTopColorR": 40,
+  "TileTopColorG": 120,
+  "TileTopColorB": 40,
+  "PerspectiveFactor": 0.2,
+  "MinimapPerspective": false,
+  "FogStrength": 0.3,
+  "ShowGrid": false,
+  "ShowInnerShapes": false,
+  "InnerShapeScale": 0.8
+}

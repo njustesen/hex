@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using HexEngine.Maps;
@@ -19,15 +21,27 @@ public class MapEditor : Panel
 {
     public EditorTool CurrentTool { get; private set; } = EditorTool.Elevation;
 
-    private UnitType _selectedUnitType = UnitType.Marine;
+    private int _selectedUnitIndex;
+    private Team _selectedTeam = Team.Red;
     private string? _lastSavePath;
     private string? _statusMessage;
     private float _statusTimer;
 
+    private string SelectedUnitType
+    {
+        get
+        {
+            var names = UnitDefs.TypeNames;
+            if (names.Count == 0) return "Marine";
+            return names[Math.Clamp(_selectedUnitIndex, 0, names.Count - 1)];
+        }
+    }
+
     // Cached panel layout
     private float _panelX, _panelY, _panelWidth, _panelHeight;
     private Rectangle? _elevBtn, _rampBtn, _unitBtn;
-    private Rectangle? _marineBtn, _tankBtn, _fighterBtn;
+    private List<(Rectangle rect, string typeName)> _unitTypeButtons = new();
+    private Rectangle? _redBtn, _blueBtn;
     private Rectangle? _saveBtn;
 
     public void Update(InputManager input, Viewport viewport, InteractionState state, bool externalClickConsumed)
@@ -48,11 +62,16 @@ public class MapEditor : Panel
         // Cycle unit type with [ / ]
         if (CurrentTool == EditorTool.Unit)
         {
-            var types = (UnitType[])Enum.GetValues(typeof(UnitType));
-            if (input.BracketRightPressed)
-                _selectedUnitType = types[((int)_selectedUnitType + 1) % types.Length];
-            if (input.BracketLeftPressed)
-                _selectedUnitType = types[((int)_selectedUnitType - 1 + types.Length) % types.Length];
+            int count = UnitDefs.TypeNames.Count;
+            if (count > 0)
+            {
+                if (input.BracketRightPressed)
+                    _selectedUnitIndex = (_selectedUnitIndex + 1) % count;
+                if (input.BracketLeftPressed)
+                    _selectedUnitIndex = (_selectedUnitIndex - 1 + count) % count;
+            }
+            if (input.TPressed)
+                _selectedTeam = _selectedTeam == Team.Red ? Team.Blue : Team.Red;
         }
 
         // Panel button clicks
@@ -70,12 +89,18 @@ public class MapEditor : Panel
                     CurrentTool = EditorTool.Ramp;
                 if (_unitBtn.HasValue && InRect(mx, my, _unitBtn.Value))
                     CurrentTool = EditorTool.Unit;
-                if (_marineBtn.HasValue && InRect(mx, my, _marineBtn.Value))
-                    _selectedUnitType = UnitType.Marine;
-                if (_tankBtn.HasValue && InRect(mx, my, _tankBtn.Value))
-                    _selectedUnitType = UnitType.Tank;
-                if (_fighterBtn.HasValue && InRect(mx, my, _fighterBtn.Value))
-                    _selectedUnitType = UnitType.Fighter;
+                for (int i = 0; i < _unitTypeButtons.Count; i++)
+                {
+                    if (InRect(mx, my, _unitTypeButtons[i].rect))
+                    {
+                        _selectedUnitIndex = i;
+                        break;
+                    }
+                }
+                if (_redBtn.HasValue && InRect(mx, my, _redBtn.Value))
+                    _selectedTeam = Team.Red;
+                if (_blueBtn.HasValue && InRect(mx, my, _blueBtn.Value))
+                    _selectedTeam = Team.Blue;
                 if (_saveBtn.HasValue && InRect(mx, my, _saveBtn.Value))
                     DoSave(viewport);
             }
@@ -108,7 +133,7 @@ public class MapEditor : Panel
         if (clickConsumed) return;
 
         if (input.MouseReleased)
-            state.HoverTile.Unit = new Unit(_selectedUnitType);
+            state.HoverTile.Unit = new Unit(SelectedUnitType) { Team = _selectedTeam };
 
         if (input.RightMouseReleased)
             state.HoverTile.Unit = null;
@@ -145,7 +170,7 @@ public class MapEditor : Panel
 
     private static void RemoveInvalidRamps(Tile tile, GridMap map)
     {
-        var edgesToRemove = new System.Collections.Generic.List<int>();
+        var edgesToRemove = new List<int>();
         foreach (int edge in tile.Ramps)
         {
             var neighbor = map.GetNeighbor(tile, edge);
@@ -205,6 +230,12 @@ public class MapEditor : Panel
 
     public void SetLastSavePath(string? path) => _lastSavePath = path;
 
+    private static string ShortName(string typeName, int maxLen = 6)
+    {
+        if (typeName.Length <= maxLen) return typeName;
+        return typeName.Substring(0, maxLen - 1) + ".";
+    }
+
     public void Draw(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, InteractionState state, float startY)
     {
         PanelBottom = startY;
@@ -218,11 +249,23 @@ public class MapEditor : Panel
         float rampBtnW = font.MeasureString("Ramp").X + Padding;
         float unitBtnW = font.MeasureString("Unit").X + Padding;
 
-        // Unit type sub-row widths
-        float marineBtnW = font.MeasureString("Marine").X + Padding;
-        float tankBtnW = font.MeasureString("Tank").X + Padding;
-        float fighterBtnW = font.MeasureString("Fighter").X + Padding;
-        float unitTypeRowW = marineBtnW + BtnGap + tankBtnW + BtnGap + fighterBtnW;
+        // Unit type sub-row widths (dynamic)
+        var typeNames = UnitDefs.TypeNames;
+        float unitTypeRowW = 0;
+        var typeWidths = new List<float>();
+        for (int i = 0; i < typeNames.Count; i++)
+        {
+            string shortName = ShortName(typeNames[i]);
+            float w = font.MeasureString(shortName).X + Padding;
+            typeWidths.Add(w);
+            unitTypeRowW += w;
+            if (i > 0) unitTypeRowW += BtnGap;
+        }
+
+        // Team sub-row widths
+        float redBtnW = font.MeasureString("Red").X + Padding;
+        float blueBtnW = font.MeasureString("Blue").X + Padding;
+        float teamRowW = redBtnW + BtnGap + blueBtnW;
 
         // Row 2: Tile info
         string tileInfo = state.HoverTile != null
@@ -237,19 +280,19 @@ public class MapEditor : Panel
         {
             EditorTool.Elevation => "LMB: Raise | RMB: Lower",
             EditorTool.Ramp => "LMB: Toggle Ramp",
-            EditorTool.Unit => $"LMB: Place {_selectedUnitType} | RMB: Remove | [/]: Cycle",
+            EditorTool.Unit => $"LMB: Place {_selectedTeam} {SelectedUnitType} | RMB: Remove | [/]: Cycle | T: Team",
             _ => ""
         };
 
         // Compute panel width
         float toolRowW = elevBtnW + BtnGap + rampBtnW + BtnGap + unitBtnW;
         float maxWidth = Math.Max(toolRowW,
-                         Math.Max(CurrentTool == EditorTool.Unit ? unitTypeRowW : 0,
+                         Math.Max(CurrentTool == EditorTool.Unit ? Math.Max(unitTypeRowW, teamRowW) : 0,
                          Math.Max(font.MeasureString(tileInfo).X,
                          Math.Max(saveBtnW, font.MeasureString(helpText).X))));
 
         int rows = 4;
-        if (CurrentTool == EditorTool.Unit) rows++;
+        if (CurrentTool == EditorTool.Unit) rows += 2;
         if (_statusTimer > 0) rows++;
         float panelWidth = maxWidth + Padding * 2;
         float panelHeight = rows * RowHeight + Padding * 2;
@@ -277,24 +320,34 @@ public class MapEditor : Panel
         cy += RowHeight;
 
         // Row 1b: Unit type sub-row (only when Unit tool active)
+        _unitTypeButtons.Clear();
         if (CurrentTool == EditorTool.Unit)
         {
-            _marineBtn = new Rectangle((int)(x + Padding), (int)cy, (int)marineBtnW, (int)BtnHeight);
-            _tankBtn = new Rectangle((int)(x + Padding + marineBtnW + BtnGap), (int)cy, (int)tankBtnW, (int)BtnHeight);
-            _fighterBtn = new Rectangle((int)(x + Padding + marineBtnW + BtnGap + tankBtnW + BtnGap), (int)cy, (int)fighterBtnW, (int)BtnHeight);
-            DrawBtn(spriteBatch, pixel, font, _marineBtn.Value, "Marine",
-                _selectedUnitType == UnitType.Marine ? new Color(40, 80, 100, 200) : new Color(60, 60, 60, 200));
-            DrawBtn(spriteBatch, pixel, font, _tankBtn.Value, "Tank",
-                _selectedUnitType == UnitType.Tank ? new Color(40, 80, 100, 200) : new Color(60, 60, 60, 200));
-            DrawBtn(spriteBatch, pixel, font, _fighterBtn.Value, "Fighter",
-                _selectedUnitType == UnitType.Fighter ? new Color(40, 80, 100, 200) : new Color(60, 60, 60, 200));
+            float btnX = x + Padding;
+            for (int i = 0; i < typeNames.Count; i++)
+            {
+                string shortName = ShortName(typeNames[i]);
+                var rect = new Rectangle((int)btnX, (int)cy, (int)typeWidths[i], (int)BtnHeight);
+                _unitTypeButtons.Add((rect, typeNames[i]));
+                DrawBtn(spriteBatch, pixel, font, rect, shortName,
+                    _selectedUnitIndex == i ? new Color(40, 80, 100, 200) : new Color(60, 60, 60, 200));
+                btnX += typeWidths[i] + BtnGap;
+            }
+            cy += RowHeight;
+
+            // Team sub-row
+            _redBtn = new Rectangle((int)(x + Padding), (int)cy, (int)redBtnW, (int)BtnHeight);
+            _blueBtn = new Rectangle((int)(x + Padding + redBtnW + BtnGap), (int)cy, (int)blueBtnW, (int)BtnHeight);
+            DrawBtn(spriteBatch, pixel, font, _redBtn.Value, "Red",
+                _selectedTeam == Team.Red ? new Color(140, 40, 40, 200) : new Color(60, 60, 60, 200));
+            DrawBtn(spriteBatch, pixel, font, _blueBtn.Value, "Blue",
+                _selectedTeam == Team.Blue ? new Color(40, 40, 140, 200) : new Color(60, 60, 60, 200));
             cy += RowHeight;
         }
         else
         {
-            _marineBtn = null;
-            _tankBtn = null;
-            _fighterBtn = null;
+            _redBtn = null;
+            _blueBtn = null;
         }
 
         // Row 2: Tile info

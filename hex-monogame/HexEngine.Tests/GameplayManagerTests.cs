@@ -5,6 +5,26 @@ namespace HexEngine.Tests;
 
 public class GameplayManagerTests
 {
+    static GameplayManagerTests()
+    {
+        var yamlPath = FindUnitsYaml();
+        UnitDefs.Load(yamlPath);
+    }
+
+    private static string FindUnitsYaml()
+    {
+        var dir = AppDomain.CurrentDomain.BaseDirectory;
+        for (int i = 0; i < 10; i++)
+        {
+            var candidate = Path.Combine(dir, "units.yaml");
+            if (File.Exists(candidate)) return candidate;
+            var parent = Directory.GetParent(dir);
+            if (parent == null) break;
+            dir = parent.FullName;
+        }
+        throw new FileNotFoundException("Could not find units.yaml");
+    }
+
     private static HexGridMap CreateFlatMap()
         => new HexGridMap(10, 10, 100f, 0.7f, "flat");
 
@@ -13,7 +33,7 @@ public class GameplayManagerTests
     {
         var map = CreateFlatMap();
         var tile = map.Tiles[5][5];
-        tile.Unit = new Unit(UnitType.Marine);
+        tile.Unit = new Unit("Marine");
 
         var gm = new GameplayManager();
         var state = new InteractionState();
@@ -30,7 +50,7 @@ public class GameplayManagerTests
     {
         var map = CreateFlatMap();
         var tile = map.Tiles[5][5];
-        tile.Unit = new Unit(UnitType.Marine);
+        tile.Unit = new Unit("Marine");
 
         var gm = new GameplayManager();
         var state = new InteractionState();
@@ -48,7 +68,7 @@ public class GameplayManagerTests
     {
         var map = CreateFlatMap();
         var tile = map.Tiles[5][5];
-        tile.Unit = new Unit(UnitType.Marine);
+        tile.Unit = new Unit("Marine");
         tile.Unit.MovementPoints = 0;
 
         var gm = new GameplayManager();
@@ -62,7 +82,7 @@ public class GameplayManagerTests
     {
         var map = CreateFlatMap();
         var start = map.Tiles[5][5];
-        start.Unit = new Unit(UnitType.Marine);
+        start.Unit = new Unit("Marine");
 
         var goal = map.GetNeighbor(start, 0)!;
 
@@ -75,7 +95,7 @@ public class GameplayManagerTests
 
         Assert.Null(start.Unit);
         Assert.NotNull(goal.Unit);
-        Assert.Equal(UnitType.Marine, goal.Unit!.Type);
+        Assert.Equal("Marine", goal.Unit!.Type);
         Assert.Equal(1, goal.Unit.MovementPoints); // 2 - 1 = 1
     }
 }

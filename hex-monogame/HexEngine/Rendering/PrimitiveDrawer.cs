@@ -132,4 +132,30 @@ public class PrimitiveDrawer
             _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, 2);
         }
     }
+
+    public void DrawCircle(Vector2 center, float radius, Color color, int segments = 16)
+    {
+        var points = new Vector2[segments];
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = MathF.PI * 2f * i / segments;
+            points[i] = new Vector2(
+                center.X + MathF.Cos(angle) * radius,
+                center.Y + MathF.Sin(angle) * radius);
+        }
+        DrawPolygonOutline(points, color);
+    }
+
+    public void DrawFilledCircle(Vector2 center, float radius, Color color, int segments = 16)
+    {
+        var points = new Vector2[segments];
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = MathF.PI * 2f * i / segments;
+            points[i] = new Vector2(
+                center.X + MathF.Cos(angle) * radius,
+                center.Y + MathF.Sin(angle) * radius);
+        }
+        DrawFilledPolygon(points, color);
+    }
 }

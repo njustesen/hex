@@ -10,6 +10,26 @@ public class MapSerializerTests : IDisposable
 {
     private readonly string _testDir;
 
+    static MapSerializerTests()
+    {
+        var yamlPath = FindUnitsYaml();
+        UnitDefs.Load(yamlPath);
+    }
+
+    private static string FindUnitsYaml()
+    {
+        var dir = AppDomain.CurrentDomain.BaseDirectory;
+        for (int i = 0; i < 10; i++)
+        {
+            var candidate = Path.Combine(dir, "units.yaml");
+            if (File.Exists(candidate)) return candidate;
+            var parent = Directory.GetParent(dir);
+            if (parent == null) break;
+            dir = parent.FullName;
+        }
+        throw new FileNotFoundException("Could not find units.yaml");
+    }
+
     public MapSerializerTests()
     {
         _testDir = Path.Combine(Path.GetTempPath(), "hex_test_" + Guid.NewGuid().ToString("N"));
@@ -144,20 +164,20 @@ public class MapSerializerTests : IDisposable
     public void RoundTrip_Units_Preserved()
     {
         var map = new HexGridMap(10, 10, 100f, 0.7f, "flat");
-        map.Tiles[1][2].Unit = new Unit(UnitType.Marine);
-        map.Tiles[3][4].Unit = new Unit(UnitType.Tank);
-        map.Tiles[5][6].Unit = new Unit(UnitType.Fighter);
+        map.Tiles[1][2].Unit = new Unit("Marine");
+        map.Tiles[3][4].Unit = new Unit("Tank");
+        map.Tiles[5][6].Unit = new Unit("Fighter");
 
         var path = Path.Combine(_testDir, "test_units.json");
         MapSerializer.Save(map, path);
         var loaded = MapSerializer.Load(path);
 
         Assert.NotNull(loaded.Tiles[1][2].Unit);
-        Assert.Equal(UnitType.Marine, loaded.Tiles[1][2].Unit!.Type);
+        Assert.Equal("Marine", loaded.Tiles[1][2].Unit!.Type);
         Assert.NotNull(loaded.Tiles[3][4].Unit);
-        Assert.Equal(UnitType.Tank, loaded.Tiles[3][4].Unit!.Type);
+        Assert.Equal("Tank", loaded.Tiles[3][4].Unit!.Type);
         Assert.NotNull(loaded.Tiles[5][6].Unit);
-        Assert.Equal(UnitType.Fighter, loaded.Tiles[5][6].Unit!.Type);
+        Assert.Equal("Fighter", loaded.Tiles[5][6].Unit!.Type);
         Assert.Null(loaded.Tiles[0][0].Unit);
     }
 }

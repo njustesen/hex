@@ -27,6 +27,7 @@ public class InputManager
     public bool LeftPressed { get; private set; }
     public bool RightPressed { get; private set; }
     public bool UPressed { get; private set; }
+    public bool TPressed { get; private set; }
     public bool BracketLeftPressed { get; private set; }
     public bool BracketRightPressed { get; private set; }
 
@@ -99,6 +100,7 @@ public class InputManager
         LeftPressed = keyState.IsKeyDown(Keys.Left) && !_prevKeyState.IsKeyDown(Keys.Left);
         RightPressed = keyState.IsKeyDown(Keys.Right) && !_prevKeyState.IsKeyDown(Keys.Right);
 
+        TPressed = keyState.IsKeyDown(Keys.T) && !_prevKeyState.IsKeyDown(Keys.T);
         BracketLeftPressed = keyState.IsKeyDown(Keys.OemOpenBrackets) && !_prevKeyState.IsKeyDown(Keys.OemOpenBrackets);
         BracketRightPressed = keyState.IsKeyDown(Keys.OemCloseBrackets) && !_prevKeyState.IsKeyDown(Keys.OemCloseBrackets);
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using HexEngine.Tiles;
 using HexEngine.View;
@@ -23,7 +24,7 @@ public class MapRenderer
         bool drawDepth = depthMultiplier > 0;
         float fogStrength = vp.IsMinimap ? 0f : EngineConfig.FogStrength;
 
-        var sortedTiles = new System.Collections.Generic.List<Tile>(vp.Map.Rows * vp.Map.Cols);
+        var sortedTiles = new List<Tile>(vp.Map.Rows * vp.Map.Cols);
         for (int y = 0; y < vp.Map.Rows; y++)
             for (int x = 0; x < vp.Map.Cols; x++)
                 sortedTiles.Add(vp.Map.Tiles[y][x]);
@@ -43,7 +44,89 @@ public class MapRenderer
                 DrawRampCorners(drawer, vp, state, tile, topColor, fogStrength);
         }
 
+        // Flying units pass — drawn after all tiles and ground units
+        foreach (var tile in sortedTiles)
+        {
+            if (tile.Unit != null && tile.Unit.IsFlying)
+            {
+                var screenPoints = vp.GetTileScreenPoints(tile);
+                float fogFactor = UnitRenderer.ComputeFogFactor(vp, tile, fogStrength);
+                var def = UnitDefs.Get(tile.Unit.Type);
+                UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor);
+            }
+        }
+
+        // Plan visualization (drawn on top)
+        DrawPlanVisualization(drawer, vp, state, fogStrength);
+
+        // Attack animation
+        DrawAttackAnimation(drawer, vp, state);
+
         DrawEdgeHighlight(drawer, vp, state);
+    }
+
+    private void DrawPlanVisualization(PrimitiveDrawer drawer, Viewport vp, InteractionState state, float fogStrength)
+    {
+        if (state.PlanPaths == null || state.PlanSteps == null) return;
+
+        Color goldColor = new Color(200, 170, 40);
+        Color brightGold = new Color(255, 220, 60);
+
+        // Draw lines connecting consecutive tile centers for each path
+        foreach (var path in state.PlanPaths)
+        {
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                var fromCenter = GetTileScreenCenter(vp, path[i]);
+                var toCenter = GetTileScreenCenter(vp, path[i + 1]);
+                drawer.DrawLine(fromCenter, toCenter, goldColor);
+            }
+        }
+
+        // Draw circles at each plan step
+        for (int i = 0; i < state.PlanSteps.Count; i++)
+        {
+            var center = GetTileScreenCenter(vp, state.PlanSteps[i]);
+            float radius = 6f;
+            if (i == state.PlanSteps.Count - 1)
+            {
+                // Final step: filled circle (brighter gold)
+                drawer.DrawFilledCircle(center, radius, brightGold);
+                drawer.DrawCircle(center, radius, goldColor);
+            }
+            else
+            {
+                // Intermediate step: outline only
+                drawer.DrawCircle(center, radius, goldColor);
+            }
+        }
+    }
+
+    private void DrawAttackAnimation(PrimitiveDrawer drawer, Viewport vp, InteractionState state)
+    {
+        if (state.AnimationTimer <= 0 || state.AnimationSourceTile == null || state.AnimationTargetTile == null)
+            return;
+
+        float t = state.AnimationTimer / 0.3f; // normalized 1->0
+        var sourceCenter = GetTileScreenCenter(vp, state.AnimationSourceTile);
+        var targetCenter = GetTileScreenCenter(vp, state.AnimationTargetTile);
+
+        // Projectile line
+        int alpha = (int)(255 * t);
+        var projColor = new Color(255, 255, 60, alpha);
+        drawer.DrawLine(sourceCenter, targetCenter, projColor);
+
+        // Hit flash: expanding circle on target
+        float hitRadius = 8f + (1f - t) * 20f;
+        int hitAlpha = (int)(200 * t);
+        var hitColor = new Color(255, 100, 60, hitAlpha);
+        drawer.DrawCircle(targetCenter, hitRadius, hitColor);
+        drawer.DrawFilledCircle(targetCenter, hitRadius * 0.5f, new Color(255, 255, 255, (int)(150 * t)));
+    }
+
+    private static Vector2 GetTileScreenCenter(Viewport vp, Tile tile)
+    {
+        return vp.WorldToSurface(tile.Pos);
     }
 
     private void DrawRampRects(PrimitiveDrawer drawer, Viewport vp, InteractionState state,
@@ -178,6 +261,20 @@ public class MapRenderer
         drawer.DrawLine(screenPoints[edge], screenPoints[nextIdx], Colors.YELLOW);
     }
 
+    private static (Vector2 center, Vector2[] innerPts) ComputeInnerShape(Vector2[] screenPoints, int vertexCount, float innerShapeScale)
+    {
+        Vector2 center = Vector2.Zero;
+        for (int i = 0; i < vertexCount; i++)
+            center += screenPoints[i];
+        center /= vertexCount;
+
+        var innerPts = new Vector2[vertexCount];
+        for (int i = 0; i < vertexCount; i++)
+            innerPts[i] = Vector2.Lerp(center, screenPoints[i], innerShapeScale);
+
+        return (center, innerPts);
+    }
+
     private void DrawTile(PrimitiveDrawer drawer, Viewport vp, InteractionState state,
                           Tile tile, Color topColor, float depthMultiplier, bool drawDepth, float fogStrength)
     {
@@ -229,22 +326,102 @@ public class MapRenderer
         // Determine fill color with gameplay highlights
         Color fillColor = foggedTopColor;
         bool shouldFill = drawDepth;
+        bool useInnerHighlight = state.InnerShapeScale > 0f && state.InnerShapeScale < 1f;
 
-        if (state.ReachableTiles != null && state.ReachableTiles.Contains(tile))
+        // Gameplay highlights — use inner shape only
+        if (state.AttackableTiles != null && state.AttackableTiles.Contains(tile))
         {
-            fillColor = ApplyFog(new Color(60, 60, 160), fogFactor);
-            shouldFill = true;
+            if (useInnerHighlight)
+            {
+                if (shouldFill) drawer.DrawFilledPolygon(screenPoints, fillColor);
+                var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(160, 40, 40), fogFactor));
+                shouldFill = false; // already drawn
+            }
+            else
+            {
+                fillColor = ApplyFog(new Color(160, 40, 40), fogFactor);
+                shouldFill = true;
+            }
         }
+        else if (state.ReachableTiles != null && state.ReachableTiles.Contains(tile))
+        {
+            if (useInnerHighlight)
+            {
+                if (shouldFill) drawer.DrawFilledPolygon(screenPoints, fillColor);
+                var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(60, 60, 160), fogFactor));
+                shouldFill = false;
+            }
+            else
+            {
+                fillColor = ApplyFog(new Color(60, 60, 160), fogFactor);
+                shouldFill = true;
+            }
+        }
+        else if (state.PlanAttackableTiles != null && state.PlanAttackableTiles.Contains(tile))
+        {
+            if (useInnerHighlight)
+            {
+                if (shouldFill) drawer.DrawFilledPolygon(screenPoints, fillColor);
+                var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(180, 60, 60), fogFactor));
+                shouldFill = false;
+            }
+            else
+            {
+                fillColor = ApplyFog(new Color(180, 60, 60), fogFactor);
+                shouldFill = true;
+            }
+        }
+        else if (state.PlanReachableTiles != null && state.PlanReachableTiles.Contains(tile))
+        {
+            if (useInnerHighlight)
+            {
+                if (shouldFill) drawer.DrawFilledPolygon(screenPoints, fillColor);
+                var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(80, 80, 180), fogFactor));
+                shouldFill = false;
+            }
+            else
+            {
+                fillColor = ApplyFog(new Color(80, 80, 180), fogFactor);
+                shouldFill = true;
+            }
+        }
+
         if (state.PlannedPath != null && state.PlannedPath.Contains(tile))
         {
-            fillColor = ApplyFog(new Color(180, 140, 40), fogFactor);
-            shouldFill = true;
+            if (useInnerHighlight && shouldFill)
+            {
+                drawer.DrawFilledPolygon(screenPoints, fillColor);
+                var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(180, 140, 40), fogFactor));
+                shouldFill = false;
+            }
+            else if (!useInnerHighlight)
+            {
+                fillColor = ApplyFog(new Color(180, 140, 40), fogFactor);
+                shouldFill = true;
+            }
         }
+
         if (tile == state.SelectedUnitTile)
         {
-            fillColor = ApplyFog(new Color(160, 160, 40), fogFactor);
-            shouldFill = true;
+            if (useInnerHighlight && shouldFill)
+            {
+                drawer.DrawFilledPolygon(screenPoints, fillColor);
+                var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(160, 160, 40), fogFactor));
+                shouldFill = false;
+            }
+            else
+            {
+                fillColor = ApplyFog(new Color(160, 160, 40), fogFactor);
+                shouldFill = true;
+            }
         }
+
         if (tile == state.SelectedTile)
         {
             fillColor = ApplyFog(new Color(40, 120, 40), fogFactor);
@@ -256,14 +433,7 @@ public class MapRenderer
 
         if (tile == state.HoverTile && state.InnerShapeScale > 0f && state.InnerShapeScale < 1f)
         {
-            Vector2 center = Vector2.Zero;
-            for (int i = 0; i < vertexCount; i++)
-                center += screenPoints[i];
-            center /= vertexCount;
-
-            var innerPts = new Vector2[vertexCount];
-            for (int i = 0; i < vertexCount; i++)
-                innerPts[i] = Vector2.Lerp(center, screenPoints[i], state.InnerShapeScale);
+            var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
 
             Color hoverColor = tile == state.SelectedTile
                 ? ApplyFog(new Color(80, 160, 80), fogFactor)
@@ -275,125 +445,17 @@ public class MapRenderer
 
         if (EngineConfig.ShowInnerShapes && state.InnerShapeScale > 0f && state.InnerShapeScale < 1f)
         {
-            Vector2 center = Vector2.Zero;
-            for (int i = 0; i < vertexCount; i++)
-                center += screenPoints[i];
-            center /= vertexCount;
-
-            var innerPoints = new Vector2[vertexCount];
-            for (int i = 0; i < vertexCount; i++)
-                innerPoints[i] = Vector2.Lerp(center, screenPoints[i], state.InnerShapeScale);
-
+            var (center, innerPoints) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
             drawer.DrawPolygonOutline(innerPoints, outlineColor);
         }
 
-        if (tile.Unit != null)
-            DrawUnit(drawer, vp, tile, screenPoints, fogFactor);
-    }
-
-    private static void DrawUnit(PrimitiveDrawer drawer, Viewport vp, Tile tile,
-                                   Vector2[] screenPoints, float fogFactor)
-    {
-        int vertexCount = screenPoints.Length;
-        Vector2 center = Vector2.Zero;
-        for (int i = 0; i < vertexCount; i++)
-            center += screenPoints[i];
-        center /= vertexCount;
-
-        float s = 0.25f;
-
-        switch (tile.Unit!.Type)
+        if (tile.Unit != null && !tile.Unit.IsFlying)
         {
-            case UnitType.Marine:
-            {
-                var top = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y - tile.Height * s));
-                var right = vp.WorldToSurface(new Vector2(tile.Pos.X + tile.Width * s, tile.Pos.Y));
-                var bottom = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y + tile.Height * s));
-                var left = vp.WorldToSurface(new Vector2(tile.Pos.X - tile.Width * s, tile.Pos.Y));
-                var pts = new[] { top, right, bottom, left };
-                drawer.DrawFilledPolygon(pts, ApplyFog(new Color(30, 160, 30), fogFactor));
-                drawer.DrawPolygonOutline(pts, ApplyFog(new Color(15, 100, 15), fogFactor));
-                break;
-            }
-            case UnitType.Tank:
-            {
-                float bw = tile.Width * s;
-                float bh = tile.Height * s * 0.7f;
-                var bodyPts = new[]
-                {
-                    vp.WorldToSurface(new Vector2(tile.Pos.X - bw, tile.Pos.Y - bh)),
-                    vp.WorldToSurface(new Vector2(tile.Pos.X + bw, tile.Pos.Y - bh)),
-                    vp.WorldToSurface(new Vector2(tile.Pos.X + bw, tile.Pos.Y + bh)),
-                    vp.WorldToSurface(new Vector2(tile.Pos.X - bw, tile.Pos.Y + bh)),
-                };
-                drawer.DrawFilledPolygon(bodyPts, ApplyFog(new Color(100, 120, 140), fogFactor));
-                drawer.DrawPolygonOutline(bodyPts, ApplyFog(new Color(60, 75, 90), fogFactor));
-
-                float tw = bw * 0.5f;
-                float th = bh * 0.6f;
-                var turretPts = new[]
-                {
-                    vp.WorldToSurface(new Vector2(tile.Pos.X - tw, tile.Pos.Y - th)),
-                    vp.WorldToSurface(new Vector2(tile.Pos.X + tw, tile.Pos.Y - th)),
-                    vp.WorldToSurface(new Vector2(tile.Pos.X + tw, tile.Pos.Y + th)),
-                    vp.WorldToSurface(new Vector2(tile.Pos.X - tw, tile.Pos.Y + th)),
-                };
-                drawer.DrawFilledPolygon(turretPts, ApplyFog(new Color(140, 160, 180), fogFactor));
-                drawer.DrawPolygonOutline(turretPts, ApplyFog(new Color(80, 100, 120), fogFactor));
-                break;
-            }
-            case UnitType.Fighter:
-            {
-                float ss = s * 0.6f;
-                var sTop = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y - tile.Height * ss));
-                var sRight = vp.WorldToSurface(new Vector2(tile.Pos.X + tile.Width * ss, tile.Pos.Y));
-                var sBottom = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y + tile.Height * ss));
-                var sLeft = vp.WorldToSurface(new Vector2(tile.Pos.X - tile.Width * ss, tile.Pos.Y));
-                drawer.DrawFilledPolygon(new[] { sTop, sRight, sBottom, sLeft }, new Color(0, 0, 0, 80));
-
-                float floatOffset = 20f;
-                var fTop = vp.WorldToSurface(new Vector2(tile.Pos.X, tile.Pos.Y - tile.Height * s));
-                var fLeft = vp.WorldToSurface(new Vector2(tile.Pos.X - tile.Width * s, tile.Pos.Y + tile.Height * s * 0.5f));
-                var fRight = vp.WorldToSurface(new Vector2(tile.Pos.X + tile.Width * s, tile.Pos.Y + tile.Height * s * 0.5f));
-                var triPts = new[]
-                {
-                    new Vector2(fTop.X, fTop.Y - floatOffset),
-                    new Vector2(fRight.X, fRight.Y - floatOffset),
-                    new Vector2(fLeft.X, fLeft.Y - floatOffset),
-                };
-                drawer.DrawFilledPolygon(triPts, ApplyFog(new Color(220, 200, 50), fogFactor));
-                drawer.DrawPolygonOutline(triPts, ApplyFog(new Color(160, 140, 30), fogFactor));
-                break;
-            }
-        }
-
-        // MP bar below unit
-        DrawMpBar(drawer, center, tile.Unit, fogFactor);
-    }
-
-    private static void DrawMpBar(PrimitiveDrawer drawer, Vector2 center, Unit unit, float fogFactor)
-    {
-        int max = unit.MaxMovementPoints;
-        if (max <= 0) return;
-
-        float barWidth = max * 6f + (max - 1) * 1f;
-        float barHeight = 4f;
-        float barY = center.Y + 12f;
-        float barX = center.X - barWidth / 2f;
-
-        // Dark background
-        drawer.DrawFilledRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2,
-            ApplyFog(new Color(20, 20, 20), fogFactor));
-
-        for (int i = 0; i < max; i++)
-        {
-            float segX = barX + i * 7f;
-            Color segColor = i < unit.MovementPoints
-                ? ApplyFog(new Color(40, 180, 40), fogFactor)
-                : ApplyFog(new Color(80, 30, 30), fogFactor);
-            drawer.DrawFilledRect(segX, barY, 6f, barHeight, segColor);
+            var def = UnitDefs.Get(tile.Unit.Type);
+            UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor);
         }
     }
+
 
     private void DrawGrid(PrimitiveDrawer drawer, Viewport vp, int gridSize)
     {

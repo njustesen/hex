@@ -8,9 +8,9 @@ namespace HexEngine.Core;
 
 public static class Pathfinding
 {
-    public static bool CanTraverse(Tile from, Tile to, int edge, GridMap map, UnitType unitType)
+    public static bool CanTraverse(Tile from, Tile to, int edge, GridMap map, bool isFlying)
     {
-        if (unitType == UnitType.Fighter)
+        if (isFlying)
             return true;
 
         if (from.Elevation == to.Elevation)
@@ -19,7 +19,7 @@ public static class Pathfinding
         return from.Ramps.Contains(edge);
     }
 
-    public static Dictionary<Tile, int> GetReachableTiles(GridMap map, Tile start, int maxCost, UnitType unitType)
+    public static Dictionary<Tile, int> GetReachableTiles(GridMap map, Tile start, int maxCost, bool isFlying)
     {
         var result = new Dictionary<Tile, int>();
         var visited = new Dictionary<Tile, int> { { start, 0 } };
@@ -38,7 +38,7 @@ public static class Pathfinding
                 var neighbor = map.GetNeighbor(current, e);
                 if (neighbor == null) continue;
 
-                if (!CanTraverse(current, neighbor, e, map, unitType))
+                if (!CanTraverse(current, neighbor, e, map, isFlying))
                     continue;
 
                 int newCost = currentCost + 1;
@@ -63,7 +63,7 @@ public static class Pathfinding
         return result;
     }
 
-    public static List<Tile>? FindPath(GridMap map, Tile start, Tile goal, UnitType unitType)
+    public static List<Tile>? FindPath(GridMap map, Tile start, Tile goal, bool isFlying)
     {
         if (goal.Unit != null) return null;
         if (start == goal) return null;
@@ -99,7 +99,7 @@ public static class Pathfinding
                 var neighbor = map.GetNeighbor(current, e);
                 if (neighbor == null) continue;
 
-                if (!CanTraverse(current, neighbor, e, map, unitType))
+                if (!CanTraverse(current, neighbor, e, map, isFlying))
                     continue;
 
                 int newG = currentG + 1;
@@ -115,6 +115,32 @@ public static class Pathfinding
         }
 
         return null;
+    }
+
+    public static HashSet<Tile> GetTilesInRange(GridMap map, Tile center, int range)
+    {
+        var result = new HashSet<Tile>();
+        var visited = new HashSet<Tile> { center };
+        var frontier = new Queue<(Tile tile, int dist)>();
+        frontier.Enqueue((center, 0));
+        int edgeCount = map.EdgeCount;
+
+        while (frontier.Count > 0)
+        {
+            var (current, dist) = frontier.Dequeue();
+            if (dist >= range) continue;
+
+            for (int e = 0; e < edgeCount; e++)
+            {
+                var neighbor = map.GetNeighbor(current, e);
+                if (neighbor == null || visited.Contains(neighbor)) continue;
+                visited.Add(neighbor);
+                result.Add(neighbor);
+                frontier.Enqueue((neighbor, dist + 1));
+            }
+        }
+
+        return result;
     }
 
     private static float Heuristic(Tile a, Tile b)

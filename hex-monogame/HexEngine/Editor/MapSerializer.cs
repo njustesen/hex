@@ -57,7 +57,10 @@ public static class MapSerializer
                     if (tile.Ramps.Count > 0)
                         td.Ramps = tile.Ramps.OrderBy(r => r).ToList();
                     if (tile.Unit != null)
-                        td.UnitType = tile.Unit.Type.ToString();
+                    {
+                        td.UnitType = tile.Unit.Type;
+                        td.UnitTeam = tile.Unit.Team.ToString();
+                    }
                     data.Tiles.Add(td);
                 }
             }
@@ -110,8 +113,12 @@ public static class MapSerializer
             {
                 if (td.UnitType == null || td.Y < 0 || td.Y >= map.Rows || td.X < 0 || td.X >= map.Cols)
                     continue;
-                if (Enum.TryParse<UnitType>(td.UnitType, out var unitType))
-                    map.Tiles[td.Y][td.X].Unit = new Unit(unitType);
+                if (UnitDefs.Exists(td.UnitType))
+                {
+                    var unit = new Unit(td.UnitType);
+                    unit.Team = Enum.TryParse<Team>(td.UnitTeam, out var t) ? t : Team.Red;
+                    map.Tiles[td.Y][td.X].Unit = unit;
+                }
             }
         }
 
@@ -184,5 +191,8 @@ public static class MapSerializer
 
         [JsonPropertyName("unit")]
         public string? UnitType { get; set; }
+
+        [JsonPropertyName("unitTeam")]
+        public string? UnitTeam { get; set; }
     }
 }

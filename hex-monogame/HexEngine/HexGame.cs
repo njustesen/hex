@@ -50,6 +50,7 @@ public class HexGame : Game
     protected override void Initialize()
     {
         EngineConfig.Load();
+        UnitDefs.Load();
         _inputManager = new InputManager();
         _debugMenu = new DebugMenu();
         _editor = new MapEditor();
@@ -165,6 +166,13 @@ public class HexGame : Game
     private void UpdatePlaying(float seconds)
     {
         _interaction.InnerShapeScale = EngineConfig.InnerShapeScale;
+
+        _gameplay.Tick(seconds);
+        if (_gameplay.IsAnimating)
+        {
+            _gameplay.Update(_interaction);
+            return;
+        }
 
         _toolbar.Update(_inputManager);
         if (_toolbar.DebugToggled) _debugMenu.Visible = !_debugMenu.Visible;

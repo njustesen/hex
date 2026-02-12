@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using Microsoft.Xna.Framework;
 using HexEngine.Tiles;
 using HexEngine.Core;
@@ -6,6 +8,19 @@ namespace HexEngine.Tests;
 
 public class TileTests
 {
+    static TileTests()
+    {
+        var dir = AppDomain.CurrentDomain.BaseDirectory;
+        for (int i = 0; i < 10; i++)
+        {
+            var candidate = Path.Combine(dir, "units.yaml");
+            if (File.Exists(candidate)) { UnitDefs.Load(candidate); return; }
+            var parent = Directory.GetParent(dir);
+            if (parent == null) break;
+            dir = parent.FullName;
+        }
+    }
+
     [Fact]
     public void Hexagon_PointyOrientation_Has6Points()
     {
