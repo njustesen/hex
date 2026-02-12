@@ -1,6 +1,6 @@
 using Microsoft.Xna.Framework.Input;
 
-namespace HexEngine;
+namespace HexEngine.Input;
 
 public class InputManager
 {

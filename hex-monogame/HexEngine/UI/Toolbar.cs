@@ -1,7 +1,8 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using HexEngine.Input;
 
-namespace HexEngine;
+namespace HexEngine.UI;
 
 public class Toolbar : Panel
 {

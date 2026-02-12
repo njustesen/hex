@@ -1,4 +1,4 @@
-namespace HexEngine;
+namespace HexEngine.Core;
 
 public class Unit
 {

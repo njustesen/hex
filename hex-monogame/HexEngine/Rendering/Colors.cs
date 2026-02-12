@@ -1,7 +1,7 @@
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 
-namespace HexEngine;
+namespace HexEngine.Rendering;
 
 public static class Colors
 {

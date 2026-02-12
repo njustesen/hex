@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Xna.Framework;
 
-namespace HexEngine;
+namespace HexEngine.Config;
 
 public static class EngineConfig
 {

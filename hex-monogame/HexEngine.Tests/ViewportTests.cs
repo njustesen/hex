@@ -1,5 +1,8 @@
 using Microsoft.Xna.Framework;
 using HexEngine.Maps;
+using HexEngine.View;
+using HexEngine.Core;
+using HexEngine.Config;
 
 namespace HexEngine.Tests;
 

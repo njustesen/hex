@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 
-namespace HexEngine;
+namespace HexEngine.Rendering;
 
 public enum DepthSide { Left, Down, Right }
 

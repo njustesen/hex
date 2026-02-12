@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using HexEngine.Tiles;
+using HexEngine.Core;
 
 namespace HexEngine.Tests;
 

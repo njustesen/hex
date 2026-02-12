@@ -2,8 +2,11 @@ using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using HexEngine.Maps;
+using HexEngine.Rendering;
+using HexEngine.Config;
+using HexEngine.Core;
 
-namespace HexEngine;
+namespace HexEngine.View;
 
 public class Minimap
 {

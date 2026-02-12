@@ -2,7 +2,7 @@ using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace HexEngine;
+namespace HexEngine.Rendering;
 
 public class PrimitiveDrawer
 {

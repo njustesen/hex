@@ -2,8 +2,11 @@ using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using HexEngine.Maps;
+using HexEngine.Input;
+using HexEngine.Config;
+using HexEngine.Editor;
 
-namespace HexEngine;
+namespace HexEngine.UI;
 
 public enum MenuScreen { Main, NewMap, LoadMap }
 

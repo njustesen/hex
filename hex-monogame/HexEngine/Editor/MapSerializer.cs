@@ -6,8 +6,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using HexEngine.Maps;
 using HexEngine.Tiles;
+using HexEngine.Config;
 
-namespace HexEngine;
+namespace HexEngine.Editor;
 
 public static class MapSerializer
 {

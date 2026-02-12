@@ -1,8 +1,11 @@
 using System;
 using Microsoft.Xna.Framework;
 using HexEngine.Tiles;
+using HexEngine.View;
+using HexEngine.Core;
+using HexEngine.Config;
 
-namespace HexEngine;
+namespace HexEngine.Rendering;
 
 public class MapRenderer
 {

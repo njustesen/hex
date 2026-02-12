@@ -2,6 +2,14 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using HexEngine.Maps;
+using HexEngine.Rendering;
+using HexEngine.View;
+using Viewport = HexEngine.View.Viewport;
+using HexEngine.UI;
+using HexEngine.Editor;
+using HexEngine.Input;
+using HexEngine.Config;
+using HexEngine.Core;
 
 namespace HexEngine;
 

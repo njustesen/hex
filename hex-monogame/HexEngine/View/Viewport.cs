@@ -4,8 +4,12 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using HexEngine.Maps;
 using HexEngine.Tiles;
+using HexEngine.Rendering;
+using HexEngine.Core;
+using HexEngine.Config;
+using HexEngine.Input;
 
-namespace HexEngine;
+namespace HexEngine.View;
 
 public class Viewport
 {

@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using HexEngine.Input;
+using HexEngine.Config;
 
-namespace HexEngine;
+namespace HexEngine.UI;
 
 public class DebugMenu : Panel
 {

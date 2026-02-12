@@ -1,6 +1,6 @@
 using HexEngine.Tiles;
 
-namespace HexEngine;
+namespace HexEngine.Core;
 
 public class InteractionState
 {

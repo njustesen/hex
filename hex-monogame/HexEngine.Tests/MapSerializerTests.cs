@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using HexEngine.Maps;
+using HexEngine.Editor;
 
 namespace HexEngine.Tests;
 

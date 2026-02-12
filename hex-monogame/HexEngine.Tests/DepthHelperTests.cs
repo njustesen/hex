@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using HexEngine.Rendering;
 
 namespace HexEngine.Tests;
 

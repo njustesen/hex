@@ -4,8 +4,14 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using HexEngine.Maps;
 using HexEngine.Tiles;
+using Viewport = HexEngine.View.Viewport;
+using HexEngine.Core;
+using HexEngine.Input;
+using HexEngine.UI;
+using HexEngine.Config;
+using HexEngine.Rendering;
 
-namespace HexEngine;
+namespace HexEngine.Editor;
 
 public enum EditorTool { Elevation, Ramp }
 
