@@ -21,14 +21,14 @@ public class TriangleUnitRenderer : UnitRenderer
         drawer.DrawPolygonOutline(new[] { fTop, fRight, fLeft }, MapRenderer.ApplyFog(outline, fogFactor));
     }
 
-    protected override void DrawShadow(PrimitiveDrawer drawer, Viewport vp,
+    protected override void DrawShadow(PrimitiveDrawer drawer, Func<float, float, Vector2> S,
         Vector2 center, float r, Color color)
     {
         var pts = new[]
         {
-            vp.WorldToSurface(new Vector2(center.X, center.Y - r)),
-            vp.WorldToSurface(new Vector2(center.X + r, center.Y + r * 0.5f)),
-            vp.WorldToSurface(new Vector2(center.X - r, center.Y + r * 0.5f)),
+            S(center.X, center.Y - r),
+            S(center.X + r, center.Y + r * 0.5f),
+            S(center.X - r, center.Y + r * 0.5f),
         };
         drawer.DrawFilledPolygon(pts, color);
     }

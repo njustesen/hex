@@ -49,17 +49,17 @@ public class RectTurretUnitRenderer : UnitRenderer
         drawer.DrawCircle(drawCenter, tScreenR, MapRenderer.ApplyFog(turretOutline, fogFactor));
     }
 
-    protected override void DrawShadow(PrimitiveDrawer drawer, Viewport vp,
+    protected override void DrawShadow(PrimitiveDrawer drawer, Func<float, float, Vector2> S,
         Vector2 center, float r, Color color)
     {
         float bw = r * 0.6f;
         float bh = r;
         var pts = new[]
         {
-            vp.WorldToSurface(new Vector2(center.X - bw, center.Y - bh)),
-            vp.WorldToSurface(new Vector2(center.X + bw, center.Y - bh)),
-            vp.WorldToSurface(new Vector2(center.X + bw, center.Y + bh)),
-            vp.WorldToSurface(new Vector2(center.X - bw, center.Y + bh)),
+            S(center.X - bw, center.Y - bh),
+            S(center.X + bw, center.Y - bh),
+            S(center.X + bw, center.Y + bh),
+            S(center.X - bw, center.Y + bh),
         };
         drawer.DrawFilledPolygon(pts, color);
     }

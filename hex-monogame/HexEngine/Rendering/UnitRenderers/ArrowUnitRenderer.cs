@@ -27,17 +27,17 @@ public class ArrowUnitRenderer : UnitRenderer
         drawer.DrawPolygonOutline(arrowPts, MapRenderer.ApplyFog(outline, fogFactor));
     }
 
-    protected override void DrawShadow(PrimitiveDrawer drawer, Viewport vp,
+    protected override void DrawShadow(PrimitiveDrawer drawer, Func<float, float, Vector2> S,
         Vector2 center, float r, Color color)
     {
         var pts = new[]
         {
-            vp.WorldToSurface(new Vector2(center.X, center.Y - r)),
-            vp.WorldToSurface(new Vector2(center.X + r, center.Y + r * 0.3f)),
-            vp.WorldToSurface(new Vector2(center.X + r * 0.35f, center.Y)),
-            vp.WorldToSurface(new Vector2(center.X, center.Y + r * 0.6f)),
-            vp.WorldToSurface(new Vector2(center.X - r * 0.35f, center.Y)),
-            vp.WorldToSurface(new Vector2(center.X - r, center.Y + r * 0.3f)),
+            S(center.X, center.Y - r),
+            S(center.X + r, center.Y + r * 0.3f),
+            S(center.X + r * 0.35f, center.Y),
+            S(center.X, center.Y + r * 0.6f),
+            S(center.X - r * 0.35f, center.Y),
+            S(center.X - r, center.Y + r * 0.3f),
         };
         drawer.DrawFilledPolygon(pts, color);
     }

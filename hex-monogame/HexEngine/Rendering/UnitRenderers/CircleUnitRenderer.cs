@@ -19,12 +19,11 @@ public class CircleUnitRenderer : UnitRenderer
         drawer.DrawCircle(drawCenter, screenRadius, MapRenderer.ApplyFog(outline, fogFactor));
     }
 
-    protected override void DrawShadow(PrimitiveDrawer drawer, Viewport vp,
+    protected override void DrawShadow(PrimitiveDrawer drawer, Func<float, float, Vector2> S,
         Vector2 center, float r, Color color)
     {
-        var edge = vp.WorldToSurface(new Vector2(center.X + r, center.Y));
-        Vector2 sc = vp.WorldToSurface(center);
-        float sr = Math.Max(2f, Vector2.Distance(sc, edge));
+        Vector2 sc = S(center.X, center.Y);
+        float sr = Math.Max(2f, Vector2.Distance(sc, S(center.X + r, center.Y)));
         drawer.DrawFilledCircle(sc, sr, color);
     }
 }

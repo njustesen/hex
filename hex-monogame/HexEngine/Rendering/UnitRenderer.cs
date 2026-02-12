@@ -30,7 +30,7 @@ public abstract class UnitRenderer
         string teamKey = unit.Team == Team.Red ? "red" : "blue";
         var colorDef = def.Colors.ContainsKey(teamKey) ? def.Colors[teamKey] : null;
 
-        // Compute visual center from screen-space polygon centroid
+        // Screen-space polygon centroid (accounts for perspective + elevation)
         int vertexCount = vp.Map.EdgeCount;
         float scx = 0, scy = 0;
         for (int i = 0; i < vertexCount; i++)
@@ -40,7 +40,20 @@ public abstract class UnitRenderer
         }
         Vector2 screenCenter = new Vector2(scx / vertexCount, scy / vertexCount);
 
-        // Compute actual half-extents from tile polygon
+        // Screen-space extents of tile polygon
+        float sMinX = float.MaxValue, sMaxX = float.MinValue;
+        float sMinY = float.MaxValue, sMaxY = float.MinValue;
+        for (int i = 0; i < vertexCount; i++)
+        {
+            if (screenPoints[i].X < sMinX) sMinX = screenPoints[i].X;
+            if (screenPoints[i].X > sMaxX) sMaxX = screenPoints[i].X;
+            if (screenPoints[i].Y < sMinY) sMinY = screenPoints[i].Y;
+            if (screenPoints[i].Y > sMaxY) sMaxY = screenPoints[i].Y;
+        }
+        float screenHalfW = (sMaxX - sMinX) / 2f;
+        float screenHalfH = (sMaxY - sMinY) / 2f;
+
+        // World-space half-extents from tile polygon
         float minX = float.MaxValue, maxX = float.MinValue;
         float minY = float.MaxValue, maxY = float.MinValue;
         foreach (var pt in tile.Points)
@@ -53,35 +66,41 @@ public abstract class UnitRenderer
         float halfExtentX = (maxX - minX) / 2f;
         float halfExtentY = (maxY - minY) / 2f;
 
+        // Scale factors: world units → screen pixels
+        float scaleX = halfExtentX > 0 ? screenHalfW / halfExtentX : 1f;
+        float scaleY = halfExtentY > 0 ? screenHalfH / halfExtentY : 1f;
+
         // Flying units: shift up and shadow down by equal amount, scaled by unit size
-        // Size-dependent offset keeps the visible gap consistent across different unit sizes
         float flyOffset = unit.IsFlying ? halfExtentY * (0.15f + def.Size * 0.35f) : 0f;
         float liftY = unit.IsFlying ? flyOffset : def.Hover * halfExtentY;
         Vector2 wp = new Vector2(tile.Pos.X, tile.Pos.Y - liftY);
 
-        // Draw shadow pushed down by same amount unit is pushed up
+        // Draw center: polygon centroid with flying lift in screen space
+        Vector2 drawCenter = new Vector2(screenCenter.X, screenCenter.Y - liftY * scaleY);
+
+        // Draw shadow at ground level (polygon centroid + shadow offset)
         if (unit.IsFlying || def.Hover > 0f)
         {
             float shadowR = def.Size * halfExtentX * (unit.IsFlying ? 0.8f : 0.6f);
             int shadowAlpha = unit.IsFlying ? 70 : 50;
             float shadowOffsetY = unit.IsFlying ? flyOffset : def.Hover * halfExtentY * 0.5f;
-            Vector2 shadowCenter = new Vector2(tile.Pos.X, tile.Pos.Y + shadowOffsetY);
-            DrawShadow(drawer, vp, shadowCenter, shadowR, new Color(0, 0, 0, shadowAlpha));
+            Vector2 shadowScreenCenter = new Vector2(screenCenter.X, screenCenter.Y + shadowOffsetY * scaleY);
+            // Shadow W: affine transform anchored at shadow screen center
+            Vector2 shadowWorldCenter = new Vector2(tile.Pos.X, tile.Pos.Y + shadowOffsetY);
+            Vector2 Sw(float x, float y) => new Vector2(
+                shadowScreenCenter.X + (x - shadowWorldCenter.X) * scaleX,
+                shadowScreenCenter.Y + (y - shadowWorldCenter.Y) * scaleY);
+            DrawShadow(drawer, Sw, shadowWorldCenter, shadowR, new Color(0, 0, 0, shadowAlpha));
         }
 
-        // For ground units, use polygon centroid as visual center
-        // For flying/hovering, offset from that centroid
-        Vector2 liftScreen = vp.WorldToSurface(wp) - vp.WorldToSurface(tile.Pos);
-        Vector2 drawCenter = screenCenter + liftScreen;
-
-        // Offset to shift world-projected points to screen centroid
-        Vector2 co = drawCenter - vp.WorldToSurface(wp);
-        // Helper: world-to-screen with centroid correction
-        Vector2 W(float x, float y) => vp.WorldToSurface(new Vector2(x, y)) + co;
+        // Affine world-to-screen: anchored at drawCenter, scaled by tile extents
+        Vector2 W(float x, float y) => new Vector2(
+            drawCenter.X + (x - wp.X) * scaleX,
+            drawCenter.Y + (y - wp.Y) * scaleY);
 
         // Base circle — size is radius relative to tile half-extent
         float baseWorldR = def.Size * halfExtentX;
-        float baseScreenR = Math.Max(3f, Vector2.Distance(drawCenter, W(wp.X + baseWorldR, wp.Y)));
+        float baseScreenR = Math.Max(3f, baseWorldR * scaleX);
         drawer.DrawCircle(drawCenter, baseScreenR, MapRenderer.ApplyFog(new Color(90, 90, 90, 140), fogFactor));
 
         Color fill = ColorFromDef(colorDef?.Fill, new Color(128, 128, 128));
@@ -106,16 +125,16 @@ public abstract class UnitRenderer
         Vector2 wp, float r, Color fill, Color outline,
         UnitColorDef? colorDef, float fogFactor);
 
-    protected virtual void DrawShadow(PrimitiveDrawer drawer, Viewport vp,
+    protected virtual void DrawShadow(PrimitiveDrawer drawer, Func<float, float, Vector2> S,
         Vector2 center, float r, Color color)
     {
         // Default: diamond shadow
         var pts = new[]
         {
-            vp.WorldToSurface(new Vector2(center.X, center.Y - r)),
-            vp.WorldToSurface(new Vector2(center.X + r, center.Y)),
-            vp.WorldToSurface(new Vector2(center.X, center.Y + r)),
-            vp.WorldToSurface(new Vector2(center.X - r, center.Y)),
+            S(center.X, center.Y - r),
+            S(center.X + r, center.Y),
+            S(center.X, center.Y + r),
+            S(center.X - r, center.Y),
         };
         drawer.DrawFilledPolygon(pts, color);
     }

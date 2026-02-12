@@ -71,17 +71,17 @@ public class HexagonUnitRenderer : UnitRenderer
         drawer.DrawCircle(center, screenR, MapRenderer.ApplyFog(tOutline, fogFactor));
     }
 
-    protected override void DrawShadow(PrimitiveDrawer drawer, Viewport vp,
+    protected override void DrawShadow(PrimitiveDrawer drawer, Func<float, float, Vector2> S,
         Vector2 center, float r, Color color)
     {
         // Wedge shadow matching the hull shape — split into convex sub-polygons
-        Vector2 nose   = vp.WorldToSurface(new Vector2(center.X, center.Y - r * 1.1f));
-        Vector2 rNeck  = vp.WorldToSurface(new Vector2(center.X + r * 0.25f, center.Y - r * 0.5f));
-        Vector2 rWing  = vp.WorldToSurface(new Vector2(center.X + r * 0.9f, center.Y + r * 0.6f));
-        Vector2 rStern = vp.WorldToSurface(new Vector2(center.X + r * 0.7f, center.Y + r * 0.9f));
-        Vector2 lStern = vp.WorldToSurface(new Vector2(center.X - r * 0.7f, center.Y + r * 0.9f));
-        Vector2 lWing  = vp.WorldToSurface(new Vector2(center.X - r * 0.9f, center.Y + r * 0.6f));
-        Vector2 lNeck  = vp.WorldToSurface(new Vector2(center.X - r * 0.25f, center.Y - r * 0.5f));
+        Vector2 nose   = S(center.X, center.Y - r * 1.1f);
+        Vector2 rNeck  = S(center.X + r * 0.25f, center.Y - r * 0.5f);
+        Vector2 rWing  = S(center.X + r * 0.9f, center.Y + r * 0.6f);
+        Vector2 rStern = S(center.X + r * 0.7f, center.Y + r * 0.9f);
+        Vector2 lStern = S(center.X - r * 0.7f, center.Y + r * 0.9f);
+        Vector2 lWing  = S(center.X - r * 0.9f, center.Y + r * 0.6f);
+        Vector2 lNeck  = S(center.X - r * 0.25f, center.Y - r * 0.5f);
 
         drawer.DrawFilledPolygon(new[] { nose, rNeck, lNeck }, color);
         drawer.DrawFilledPolygon(new[] { rNeck, rWing, lWing, lNeck }, color);
