@@ -33,6 +33,10 @@ public class Unit
     public string? ProducingType { get; set; }
     public int ProductionTurnsLeft { get; set; }
     public bool IsProducing => ProducingType != null;
+    public (int X, int Y)? MineTargetCoords { get; set; }
+
+    // Mine levels (1 = base, 2 = level II, 3 = level III)
+    public int MineLevel { get; set; } = 1;
 
     public void StartProduction(string type)
     {

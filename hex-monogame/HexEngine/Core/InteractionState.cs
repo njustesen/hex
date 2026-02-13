@@ -46,6 +46,13 @@ public class InteractionState
     // Mode
     public bool IsEditor { get; set; }
 
+    // Resources
+    public int TeamIron { get; set; }
+    public int TeamFissium { get; set; }
+    public int TeamIronIncome { get; set; }
+    public int TeamFissiumIncome { get; set; }
+    public List<Tile>? MinePlacementTiles { get; set; }
+
     // Derived
     public Unit? SelectedUnit => SelectedUnitTile?.Unit;
 }

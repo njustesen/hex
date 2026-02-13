@@ -785,4 +785,352 @@ public class CombatTests
         Assert.Equal(ccTile, state.SelectedUnitTile);
         Assert.Equal(cc, state.SelectedUnit);
     }
+
+    // --- Resource system tests ---
+
+    [Fact]
+    public void BaseIncome_Adds3EachPerTurn()
+    {
+        var map = CreateFlatMap();
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        Assert.Equal((3, 3), gm.GetResources(Team.Red));
+
+        // End Red turn → Blue gets income (3 base + 3 start)
+        gm.EndTurn(map);
+        Assert.Equal((6, 6), gm.GetResources(Team.Blue));
+        Assert.Equal((3, 3), gm.GetResources(Team.Red));
+
+        // End Blue turn → Red gets income (3 base + 3 start)
+        gm.EndTurn(map);
+        Assert.Equal((6, 6), gm.GetResources(Team.Red));
+    }
+
+    [Fact]
+    public void MineIncome_Adds3OfResourceType()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var mineTile = map.GetNeighbor(ccTile, 0)!;
+
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        ccTile.Unit = cc;
+
+        mineTile.Resource = Tiles.ResourceType.Iron;
+        mineTile.Unit = new Unit("Mine") { Team = Team.Red };
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // End Red → Blue (Blue gets base income only)
+        gm.EndTurn(map);
+        // End Blue → Red (Red gets base 3 + mine 3 iron; starting 3I+3F)
+        gm.EndTurn(map);
+
+        var res = gm.GetResources(Team.Red);
+        Assert.Equal(9, res.Iron);   // 3 start + 3 base + 3 mine
+        Assert.Equal(6, res.Fissium); // 3 start + 3 base
+    }
+
+    [Fact]
+    public void MineIncome_FissiumMine()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var mineTile = map.GetNeighbor(ccTile, 0)!;
+
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Blue };
+        mineTile.Resource = Tiles.ResourceType.Fissium;
+        mineTile.Unit = new Unit("Mine") { Team = Team.Blue };
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // End Red → Blue (Blue gets base 3 + mine 3 fissium; starting 3I+3F)
+        gm.EndTurn(map);
+
+        var res = gm.GetResources(Team.Blue);
+        Assert.Equal(6, res.Iron);   // 3 start + 3 base
+        Assert.Equal(9, res.Fissium); // 3 start + 3 base + 3 mine
+    }
+
+    [Fact]
+    public void MineIncome_NotAdjacentToCC_NoBonus()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var farTile = map.Tiles[0][0]; // not adjacent to CC
+
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+        farTile.Resource = Tiles.ResourceType.Iron;
+        farTile.Unit = new Unit("Mine") { Team = Team.Red };
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        gm.EndTurn(map); // → Blue
+        gm.EndTurn(map); // → Red, income
+
+        var res = gm.GetResources(Team.Red);
+        Assert.Equal(6, res.Iron); // 3 start + 3 base, no mine bonus
+    }
+
+    [Fact]
+    public void Costs_DeductedOnProductionStart()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        ccTile.Unit = cc;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Select CC and start production (starts with 3I, 3F)
+        gm.OnTileClicked(ccTile, map);
+        gm.StartProduction("Marine"); // costs 1I
+
+        var res = gm.GetResources(Team.Red);
+        Assert.Equal(2, res.Iron);   // 3 - 1
+        Assert.Equal(3, res.Fissium); // unchanged
+        Assert.True(cc.IsProducing);
+    }
+
+    [Fact]
+    public void CannotBuild_WhenCantAfford()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        ccTile.Unit = cc;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Starts with 3I, 3F — can afford Tank (3I+2F) but not Battlecruiser (5I+5F)
+        Assert.True(gm.CanAfford("Tank", Team.Red));
+        Assert.False(gm.CanAfford("Battlecruiser", Team.Red));
+
+        gm.OnTileClicked(ccTile, map);
+        gm.StartProduction("Battlecruiser"); // should fail silently
+
+        Assert.False(cc.IsProducing); // didn't start
+    }
+
+    [Fact]
+    public void CancelProduction_RefundsResources()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        ccTile.Unit = cc;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Starts with 3I, 3F
+        gm.OnTileClicked(ccTile, map);
+        gm.StartProduction("LandSpeeder"); // costs 2I+1F
+
+        var res = gm.GetResources(Team.Red);
+        Assert.Equal(1, res.Iron);   // 3 - 2
+        Assert.Equal(2, res.Fissium); // 3 - 1
+
+        gm.CancelProduction();
+
+        res = gm.GetResources(Team.Red);
+        Assert.Equal(3, res.Iron);   // refunded
+        Assert.Equal(3, res.Fissium); // refunded
+        Assert.False(cc.IsProducing);
+    }
+
+    [Fact]
+    public void MinePlacement_ValidTilesAdjacentToCC()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var resourceTile = map.GetNeighbor(ccTile, 0)!;
+        var emptyTile = map.GetNeighbor(ccTile, 1)!; // no resource
+
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+        resourceTile.Resource = Tiles.ResourceType.Iron;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Starts with 3I, 3F — need 5I for mine, so earn more
+        gm.EndTurn(map); gm.EndTurn(map); // Red gets +3I +3F → 6I, 6F
+
+        gm.OnTileClicked(ccTile, map);
+        gm.EnterMineMode();
+
+        Assert.True(gm.IsMineMode);
+
+        var state = new InteractionState();
+        gm.Update(state);
+
+        Assert.NotNull(state.MinePlacementTiles);
+        Assert.Contains(resourceTile, state.MinePlacementTiles!);
+        Assert.DoesNotContain(emptyTile, state.MinePlacementTiles!);
+    }
+
+    [Fact]
+    public void MineSpawns_AtTargetCoords_AfterProduction()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var resourceTile = map.GetNeighbor(ccTile, 0)!;
+
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+        resourceTile.Resource = Tiles.ResourceType.Fissium;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Starts with 3I, need 5I for mine — earn more
+        gm.EndTurn(map); gm.EndTurn(map); // Red gets +3I → 6I
+
+        // Select CC, enter mine mode, click resource tile
+        gm.OnTileClicked(ccTile, map);
+        gm.EnterMineMode();
+        gm.OnTileClicked(resourceTile, map);
+
+        Assert.True(ccTile.Unit!.IsProducing);
+        Assert.Equal("Mine", ccTile.Unit.ProducingType);
+
+        // Advance: Red → Blue → Red (mine takes 1 turn)
+        gm.EndTurn(map); // → Blue
+        gm.EndTurn(map); // → Red, mine spawns
+
+        Assert.NotNull(resourceTile.Unit);
+        Assert.Equal("Mine", resourceTile.Unit!.Type);
+        Assert.Equal(Team.Red, resourceTile.Unit.Team);
+        Assert.False(ccTile.Unit.IsProducing);
+    }
+
+    [Fact]
+    public void MineUpgrade_IncreasesLevel_Costs3Iron()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var mineTile = map.GetNeighbor(ccTile, 0)!;
+
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+        mineTile.Resource = Tiles.ResourceType.Iron;
+        var mine = new Unit("Mine") { Team = Team.Red };
+        mineTile.Unit = mine;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Starts with 3I — earn more (base 3 + mine 3 iron)
+        gm.EndTurn(map); gm.EndTurn(map); // Red: 3 + 3 + 3 = 9I, 3 + 3 = 6F
+
+        Assert.Equal(1, mine.MineLevel);
+
+        // Select mine, upgrade (costs 3I)
+        gm.OnTileClicked(mineTile, map);
+        gm.UpgradeMine();
+
+        Assert.Equal(2, mine.MineLevel);
+        var res = gm.GetResources(Team.Red);
+        Assert.Equal(6, res.Iron); // 9 - 3
+    }
+
+    [Fact]
+    public void MineUpgrade_Level3Max()
+    {
+        var map = CreateFlatMap();
+        var mineTile = map.Tiles[5][5];
+        var mine = new Unit("Mine") { Team = Team.Red };
+        mine.MineLevel = 3;
+        mineTile.Unit = mine;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Give resources
+        gm.EndTurn(map); gm.EndTurn(map);
+
+        gm.OnTileClicked(mineTile, map);
+        gm.UpgradeMine(); // should do nothing at max level
+
+        Assert.Equal(3, mine.MineLevel); // stays at 3
+    }
+
+    [Fact]
+    public void MineUpgrade_IncreasesIncome()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var mineTile = map.GetNeighbor(ccTile, 0)!;
+
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+        mineTile.Resource = Tiles.ResourceType.Iron;
+        var mine = new Unit("Mine") { Team = Team.Red };
+        mine.MineLevel = 2; // level 2 = 2+2 = 4 production
+        mineTile.Unit = mine;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        gm.EndTurn(map); // → Blue
+        gm.EndTurn(map); // → Red: 3 start + base 3 + mine 4 = 10 iron, 3+3 = 6 fissium
+
+        var res = gm.GetResources(Team.Red);
+        Assert.Equal(10, res.Iron);
+        Assert.Equal(6, res.Fissium);
+    }
+
+    [Fact]
+    public void UnitCosts_LoadedFromDefs()
+    {
+        Assert.Equal(1, UnitDefs.Get("Marine").CostIron);
+        Assert.Equal(0, UnitDefs.Get("Marine").CostFissium);
+        Assert.Equal(2, UnitDefs.Get("LandSpeeder").CostIron);
+        Assert.Equal(1, UnitDefs.Get("LandSpeeder").CostFissium);
+        Assert.Equal(3, UnitDefs.Get("Tank").CostIron);
+        Assert.Equal(2, UnitDefs.Get("Tank").CostFissium);
+        Assert.Equal(2, UnitDefs.Get("Fighter").CostIron);
+        Assert.Equal(3, UnitDefs.Get("Fighter").CostFissium);
+        Assert.Equal(5, UnitDefs.Get("Battlecruiser").CostIron);
+        Assert.Equal(5, UnitDefs.Get("Battlecruiser").CostFissium);
+        Assert.Equal(3, UnitDefs.Get("Bunker").CostIron);
+        Assert.Equal(0, UnitDefs.Get("Bunker").CostFissium);
+        Assert.Equal(2, UnitDefs.Get("AntiAirTurret").CostIron);
+        Assert.Equal(0, UnitDefs.Get("AntiAirTurret").CostFissium);
+        Assert.Equal(10, UnitDefs.Get("CommandCenter").CostIron);
+        Assert.Equal(0, UnitDefs.Get("CommandCenter").CostFissium);
+        Assert.Equal(5, UnitDefs.Get("Mine").CostIron);
+        Assert.Equal(0, UnitDefs.Get("Mine").CostFissium);
+    }
+
+    [Fact]
+    public void Mine_HasCorrectStats()
+    {
+        var unit = new Unit("Mine");
+        Assert.Equal(5, unit.MaxHealth);
+        Assert.Equal(1, unit.Armor);
+        Assert.Equal(0, unit.Damage);
+        Assert.Equal(0, unit.Range);
+        Assert.Equal(0, unit.MaxMovementPoints);
+        Assert.Equal(0, unit.MaxAttacks);
+        Assert.Equal(1, unit.Sight);
+        Assert.Equal(1, unit.MineLevel);
+    }
+
+    [Fact]
+    public void CanAfford_ChecksBothResources()
+    {
+        var map = CreateFlatMap();
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Red starts with 3I, 3F
+        Assert.True(gm.CanAfford("Marine", Team.Red));     // needs 1I
+        Assert.True(gm.CanAfford("LandSpeeder", Team.Red)); // needs 2I+1F
+        Assert.True(gm.CanAfford("Tank", Team.Red));        // needs 3I+2F
+        Assert.False(gm.CanAfford("Battlecruiser", Team.Red)); // needs 5I+5F
+    }
 }

@@ -31,6 +31,7 @@ public class HexGame : Game
     private InteractionState _interaction = new();
     private Toolbar _toolbar = new();
     private InfoPanel _infoPanel = new();
+    private ResourceBar _resourceBar = new();
     private GameplayManager _gameplay = new();
     private SpriteFont _debugFont = null!;
     private Texture2D _pixel = null!;
@@ -240,7 +241,11 @@ public class HexGame : Game
 
         if (_inputManager.EscapePressed)
         {
-            if (_editor.Visible)
+            if (_gameplay.IsMineMode)
+            {
+                _gameplay.ExitMineMode();
+            }
+            else if (_editor.Visible)
             {
                 _editor.Visible = false;
             }
@@ -258,12 +263,19 @@ public class HexGame : Game
         _viewport.Update(seconds, _inputManager, _interaction);
 
         float minimapX = _minimap.ScreenX1;
-        _infoPanel.Update(_inputManager, _interaction, minimapX, EngineConfig.Width, EngineConfig.Height);
+
+        // Set context for InfoPanel mine button
+        _infoPanel.SetContext(_interaction.SelectedUnitTile, _map);
+        _infoPanel.Update(_inputManager, _interaction, minimapX, EngineConfig.Width, EngineConfig.Height, _gameplay);
 
         if (_infoPanel.ProductionStartType != null)
             _gameplay.StartProduction(_infoPanel.ProductionStartType);
         if (_infoPanel.ProductionCancelled)
             _gameplay.CancelProduction();
+        if (_infoPanel.MineRequested)
+            _gameplay.EnterMineMode();
+        if (_infoPanel.UpgradeMineRequested)
+            _gameplay.UpgradeMine();
 
         bool uiConsumed = _toolbar.ConsumesClick || _debugMenu.ConsumesClick || _infoPanel.ConsumesClick;
 
@@ -335,10 +347,13 @@ public class HexGame : Game
             _spriteBatch.Draw(_minimap.RenderTarget,
                 new Vector2(_minimap.ScreenX1, _minimap.ScreenY1), Color.White);
 
-        _infoPanel.Draw(_spriteBatch, _debugFont, _pixel, _interaction);
+        _infoPanel.Draw(_spriteBatch, _debugFont, _pixel, _interaction, _gameplay);
 
         _toolbar.SetState(_debugMenu.Visible, _editor.Visible);
         _toolbar.Draw(_spriteBatch, _debugFont, _pixel, _gameplay.CurrentTeam);
+
+        // Resource bar (right of toolbar)
+        _resourceBar.Draw(_spriteBatch, _debugFont, _pixel, _interaction, EngineConfig.Width);
 
         float panelY = _toolbar.Bottom;
         _debugMenu.Draw(_spriteBatch, _debugFont, _pixel, panelY);
@@ -348,8 +363,16 @@ public class HexGame : Game
 
         _spriteBatch.End();
 
-        // Draw minimap border and cursor using primitives
+        // Draw unit previews in info panel build squares (PrimitiveDrawer on top of panel backgrounds)
         _drawer.UpdateProjection(EngineConfig.Width, EngineConfig.Height);
+        _infoPanel.DrawUnitPreviews(_drawer);
+
+        // Draw tooltip on top of unit previews
+        _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+        _infoPanel.DrawTooltip(_spriteBatch, _debugFont, _pixel);
+        _spriteBatch.End();
+
+        // Draw minimap border and cursor using primitives
         _drawer.DrawRectOutline(_minimap.ScreenX1 - 1, _minimap.ScreenY1 - 1,
                                 _minimap.ScreenWidth + 2, _minimap.ScreenHeight + 2, Colors.RED);
 

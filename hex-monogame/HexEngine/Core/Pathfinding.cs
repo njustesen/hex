@@ -52,11 +52,12 @@ public static class Pathfinding
             }
         }
 
-        // Exclude start tile and occupied tiles from result
+        // Exclude start tile, occupied tiles, and resource tiles from result
         foreach (var kvp in visited)
         {
             if (kvp.Key == start) continue;
             if (kvp.Key.Unit != null) continue;
+            if (kvp.Key.Resource != ResourceType.None) continue;
             result[kvp.Key] = kvp.Value;
         }
 
@@ -66,6 +67,7 @@ public static class Pathfinding
     public static List<Tile>? FindPath(GridMap map, Tile start, Tile goal, bool isFlying)
     {
         if (goal.Unit != null) return null;
+        if (goal.Resource != ResourceType.None) return null;
         if (start == goal) return null;
 
         int edgeCount = map.EdgeCount;

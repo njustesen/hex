@@ -19,6 +19,7 @@ public abstract class UnitRenderer
         ["circle_turret"] = new UnitRenderers.CircleTurretUnitRenderer(),
         ["missile_tower"] = new UnitRenderers.MissileTowerUnitRenderer(),
         ["command_center"] = new UnitRenderers.CommandCenterUnitRenderer(),
+        ["mine"] = new UnitRenderers.MineUnitRenderer(),
     };
     private static readonly UnitRenderer _fallback = new UnitRenderers.DiamondUnitRenderer();
 
@@ -34,7 +35,7 @@ public abstract class UnitRenderer
 
     public void Draw(PrimitiveDrawer drawer, Viewport vp, Tile tile,
                      Vector2[] screenPoints, float fogFactor, bool isEnemy = false, bool isEditor = false,
-                     Unit? unitOverride = null)
+                     Unit? unitOverride = null, bool deferStatBars = false)
     {
         var unit = unitOverride ?? tile.Unit!;
         var def = UnitDefs.Get(unit.Type);
@@ -151,20 +152,79 @@ public abstract class UnitRenderer
 
         DrawShape(drawer, W, drawCenter, wp, r, fill, outline, colorDef, fogFactor);
 
-        // Stat bars below unit
+        // Stat bars below unit (only if not deferred)
+        if (!deferStatBars)
+            DrawStatBarsInternal(drawer, drawCenter, baseScreenR, unit, fogFactor, isEnemy);
+    }
+
+    /// Draw only the stat bars for a unit (health, ammo, movement).
+    /// Called in a separate pass so bars render on top of all tiles.
+    public void DrawStatBars(PrimitiveDrawer drawer, Viewport vp, Tile tile,
+                             Vector2[] screenPoints, float fogFactor, bool isEnemy = false,
+                             Unit? unitOverride = null)
+    {
+        var unit = unitOverride ?? tile.Unit!;
+        if (vp.IsMinimap) return;
+
+        var def = UnitDefs.Get(unit.Type);
+        int vertexCount = vp.Map.EdgeCount;
+
+        float scx = 0, scy = 0;
+        for (int i = 0; i < vertexCount; i++)
+        {
+            scx += screenPoints[i].X;
+            scy += screenPoints[i].Y;
+        }
+        Vector2 screenCenter = new Vector2(scx / vertexCount, scy / vertexCount);
+
+        float sMinX = float.MaxValue, sMaxX = float.MinValue;
+        float sMinY = float.MaxValue, sMaxY = float.MinValue;
+        for (int i = 0; i < vertexCount; i++)
+        {
+            if (screenPoints[i].X < sMinX) sMinX = screenPoints[i].X;
+            if (screenPoints[i].X > sMaxX) sMaxX = screenPoints[i].X;
+            if (screenPoints[i].Y < sMinY) sMinY = screenPoints[i].Y;
+            if (screenPoints[i].Y > sMaxY) sMaxY = screenPoints[i].Y;
+        }
+        float screenHalfW = (sMaxX - sMinX) / 2f;
+        float screenHalfH = (sMaxY - sMinY) / 2f;
+
+        float minX = float.MaxValue, maxX = float.MinValue;
+        float minY = float.MaxValue, maxY = float.MinValue;
+        foreach (var pt in tile.Points)
+        {
+            if (pt.X < minX) minX = pt.X;
+            if (pt.X > maxX) maxX = pt.X;
+            if (pt.Y < minY) minY = pt.Y;
+            if (pt.Y > maxY) maxY = pt.Y;
+        }
+        float halfExtentX = (maxX - minX) / 2f;
+        float halfExtentY = (maxY - minY) / 2f;
+        float scaleY = halfExtentY > 0 ? screenHalfH / halfExtentY : 1f;
+        float scaleX = halfExtentX > 0 ? screenHalfW / halfExtentX : 1f;
+
+        float flyOffset = unit.IsFlying ? halfExtentY * (0.15f + def.Size * 0.35f) : 0f;
+        float liftY = unit.IsFlying ? flyOffset : def.Hover * halfExtentY;
+        Vector2 drawCenter = new Vector2(screenCenter.X, screenCenter.Y - liftY * scaleY);
+        float baseScreenR = Math.Max(3f, def.Size * halfExtentX * scaleX);
+
+        DrawStatBarsInternal(drawer, drawCenter, baseScreenR, unit, fogFactor, isEnemy);
+    }
+
+    private static void DrawStatBarsInternal(PrimitiveDrawer drawer, Vector2 drawCenter,
+                                              float baseScreenR, Unit unit, float fogFactor, bool isEnemy)
+    {
         const float rowHeight = 8f;
         const float statGap = 3f;
         float rowStartY = drawCenter.Y + baseScreenR + statGap;
 
         if (isEnemy)
         {
-            // Enemy units: only show health bar
             Vector2 healthAnchor = new Vector2(drawCenter.X, rowStartY);
             DrawHealthBar(drawer, healthAnchor, unit, fogFactor);
         }
         else
         {
-            // Friendly units: show ammo, movement, and health
             Vector2 ammoAnchor = new Vector2(drawCenter.X, rowStartY);
             Vector2 mpAnchor = new Vector2(drawCenter.X, rowStartY + rowHeight);
             Vector2 healthAnchor = new Vector2(drawCenter.X, rowStartY + 2 * rowHeight);
@@ -172,6 +232,34 @@ public abstract class UnitRenderer
             DrawMpBar(drawer, mpAnchor, unit, fogFactor);
             DrawHealthBar(drawer, healthAnchor, unit, fogFactor);
         }
+    }
+
+    /// Draw a unit shape preview centered at (cx, cy) fitting within the given size.
+    public static void DrawPreview(PrimitiveDrawer drawer, string unitType, Team team, float cx, float cy, float size, float brightness = 1f)
+    {
+        var def = UnitDefs.Get(unitType);
+        var teamColor = TeamColors.TryGetValue(team, out var tc) ? tc : TeamColors[Team.Red];
+
+        List<int> Dim(Color c) => new() { (int)(c.R * brightness), (int)(c.G * brightness), (int)(c.B * brightness) };
+
+        var colorDef = new UnitColorDef
+        {
+            Fill = Dim(teamColor.Fill),
+            Outline = Dim(teamColor.Outline),
+            TurretFill = Dim(teamColor.TurretFill),
+            TurretOutline = Dim(teamColor.TurretOutline),
+        };
+
+        Color fill = ColorFromDef(colorDef.Fill, new Color(128, 128, 128));
+        Color outline = ColorFromDef(colorDef.Outline, new Color(80, 80, 80));
+
+        Vector2 drawCenter = new Vector2(cx, cy);
+        Vector2 wp = Vector2.Zero;
+        float r = size * 0.35f;
+
+        Vector2 W(float x, float y) => new Vector2(cx + x, cy + y);
+
+        GetRenderer(def.Shape).DrawShape(drawer, W, drawCenter, wp, r, fill, outline, colorDef, 1f);
     }
 
     protected abstract void DrawShape(PrimitiveDrawer drawer,

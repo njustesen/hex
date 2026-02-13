@@ -15,7 +15,7 @@ using HexEngine.Rendering;
 
 namespace HexEngine.Editor;
 
-public enum EditorTool { Elevation, Ramp, Unit }
+public enum EditorTool { Elevation, Ramp, Unit, Resource }
 
 public class MapEditor : Panel
 {
@@ -23,6 +23,7 @@ public class MapEditor : Panel
 
     private int _selectedUnitIndex;
     private Team _selectedTeam = Team.Red;
+    private ResourceType _selectedResource = ResourceType.Iron;
     private string? _lastSavePath;
     private string? _statusMessage;
     private float _statusTimer;
@@ -39,9 +40,10 @@ public class MapEditor : Panel
 
     // Cached panel layout
     private float _panelX, _panelY, _panelWidth, _panelHeight;
-    private Rectangle? _elevBtn, _rampBtn, _unitBtn;
+    private Rectangle? _elevBtn, _rampBtn, _unitBtn, _resBtn;
     private List<(Rectangle rect, string typeName)> _unitTypeButtons = new();
     private Rectangle? _redBtn, _blueBtn;
+    private Rectangle? _ironBtn, _fissiumBtn;
     private Rectangle? _saveBtn;
 
     public void Update(InputManager input, Viewport viewport, InteractionState state, bool externalClickConsumed)
@@ -58,6 +60,8 @@ public class MapEditor : Panel
             CurrentTool = EditorTool.Ramp;
         if (input.UPressed)
             CurrentTool = EditorTool.Unit;
+        if (input.GPressed)
+            CurrentTool = EditorTool.Resource;
 
         // Cycle unit type with [ / ]
         if (CurrentTool == EditorTool.Unit)
@@ -72,6 +76,15 @@ public class MapEditor : Panel
             }
             if (input.TPressed)
                 _selectedTeam = _selectedTeam == Team.Red ? Team.Blue : Team.Red;
+        }
+
+        // Cycle resource type with [ / ]
+        if (CurrentTool == EditorTool.Resource)
+        {
+            if (input.BracketRightPressed)
+                _selectedResource = _selectedResource == ResourceType.Iron ? ResourceType.Fissium : ResourceType.Iron;
+            if (input.BracketLeftPressed)
+                _selectedResource = _selectedResource == ResourceType.Iron ? ResourceType.Fissium : ResourceType.Iron;
         }
 
         // Panel button clicks
@@ -89,6 +102,8 @@ public class MapEditor : Panel
                     CurrentTool = EditorTool.Ramp;
                 if (_unitBtn.HasValue && InRect(mx, my, _unitBtn.Value))
                     CurrentTool = EditorTool.Unit;
+                if (_resBtn.HasValue && InRect(mx, my, _resBtn.Value))
+                    CurrentTool = EditorTool.Resource;
                 for (int i = 0; i < _unitTypeButtons.Count; i++)
                 {
                     if (InRect(mx, my, _unitTypeButtons[i].rect))
@@ -101,6 +116,10 @@ public class MapEditor : Panel
                     _selectedTeam = Team.Red;
                 if (_blueBtn.HasValue && InRect(mx, my, _blueBtn.Value))
                     _selectedTeam = Team.Blue;
+                if (_ironBtn.HasValue && InRect(mx, my, _ironBtn.Value))
+                    _selectedResource = ResourceType.Iron;
+                if (_fissiumBtn.HasValue && InRect(mx, my, _fissiumBtn.Value))
+                    _selectedResource = ResourceType.Fissium;
                 if (_saveBtn.HasValue && InRect(mx, my, _saveBtn.Value))
                     DoSave(viewport);
             }
@@ -118,6 +137,8 @@ public class MapEditor : Panel
             DoRamp(input, viewport, state, clickConsumed);
         else if (CurrentTool == EditorTool.Unit)
             DoUnit(input, state, clickConsumed);
+        else if (CurrentTool == EditorTool.Resource)
+            DoResource(input, state, clickConsumed);
 
         // Ctrl+S save shortcut
         if (input.CtrlS)
@@ -137,6 +158,18 @@ public class MapEditor : Panel
 
         if (input.RightMouseReleased)
             state.HoverTile.Unit = null;
+    }
+
+    private void DoResource(InputManager input, InteractionState state, bool clickConsumed)
+    {
+        if (state.HoverTile == null) return;
+        if (clickConsumed) return;
+
+        if (input.MouseReleased)
+            state.HoverTile.Resource = _selectedResource;
+
+        if (input.RightMouseReleased)
+            state.HoverTile.Resource = ResourceType.None;
     }
 
     private void DoSave(Viewport viewport)
@@ -248,6 +281,7 @@ public class MapEditor : Panel
         float elevBtnW = font.MeasureString("Elev").X + Padding;
         float rampBtnW = font.MeasureString("Ramp").X + Padding;
         float unitBtnW = font.MeasureString("Unit").X + Padding;
+        float resBtnW = font.MeasureString("Res").X + Padding;
 
         // Unit type sub-row widths (dynamic)
         var typeNames = UnitDefs.TypeNames;
@@ -267,9 +301,15 @@ public class MapEditor : Panel
         float blueBtnW = font.MeasureString("Blue").X + Padding;
         float teamRowW = redBtnW + BtnGap + blueBtnW;
 
+        // Resource sub-row widths
+        float ironBtnW = font.MeasureString("Iron").X + Padding;
+        float fissBtnW = font.MeasureString("Fissium").X + Padding;
+        float resTypeRowW = ironBtnW + BtnGap + fissBtnW;
+
         // Row 2: Tile info
         string tileInfo = state.HoverTile != null
-            ? $"Tile [{state.HoverTile.X},{state.HoverTile.Y}] Elev: {state.HoverTile.Elevation}"
+            ? $"Tile [{state.HoverTile.X},{state.HoverTile.Y}] Elev: {state.HoverTile.Elevation}" +
+              (state.HoverTile.Resource != ResourceType.None ? $" Res: {state.HoverTile.Resource}" : "")
             : "Tile: -";
 
         // Row 3: Save
@@ -281,18 +321,23 @@ public class MapEditor : Panel
             EditorTool.Elevation => "LMB: Raise | RMB: Lower",
             EditorTool.Ramp => "LMB: Toggle Ramp",
             EditorTool.Unit => $"LMB: Place {_selectedTeam} {SelectedUnitType} | RMB: Remove | [/]: Cycle | T: Team",
+            EditorTool.Resource => $"LMB: Place {_selectedResource} | RMB: Remove | [/]: Cycle",
             _ => ""
         };
 
         // Compute panel width
-        float toolRowW = elevBtnW + BtnGap + rampBtnW + BtnGap + unitBtnW;
+        float toolRowW = elevBtnW + BtnGap + rampBtnW + BtnGap + unitBtnW + BtnGap + resBtnW;
+        float subRowW = 0;
+        if (CurrentTool == EditorTool.Unit) subRowW = Math.Max(unitTypeRowW, teamRowW);
+        else if (CurrentTool == EditorTool.Resource) subRowW = resTypeRowW;
         float maxWidth = Math.Max(toolRowW,
-                         Math.Max(CurrentTool == EditorTool.Unit ? Math.Max(unitTypeRowW, teamRowW) : 0,
+                         Math.Max(subRowW,
                          Math.Max(font.MeasureString(tileInfo).X,
                          Math.Max(saveBtnW, font.MeasureString(helpText).X))));
 
         int rows = 4;
         if (CurrentTool == EditorTool.Unit) rows += 2;
+        if (CurrentTool == EditorTool.Resource) rows += 1;
         if (_statusTimer > 0) rows++;
         float panelWidth = maxWidth + Padding * 2;
         float panelHeight = rows * RowHeight + Padding * 2;
@@ -311,16 +356,21 @@ public class MapEditor : Panel
         _elevBtn = new Rectangle((int)(x + Padding), (int)cy, (int)elevBtnW, (int)BtnHeight);
         _rampBtn = new Rectangle((int)(x + Padding + elevBtnW + BtnGap), (int)cy, (int)rampBtnW, (int)BtnHeight);
         _unitBtn = new Rectangle((int)(x + Padding + elevBtnW + BtnGap + rampBtnW + BtnGap), (int)cy, (int)unitBtnW, (int)BtnHeight);
+        _resBtn = new Rectangle((int)(x + Padding + elevBtnW + BtnGap + rampBtnW + BtnGap + unitBtnW + BtnGap), (int)cy, (int)resBtnW, (int)BtnHeight);
         DrawBtn(spriteBatch, pixel, font, _elevBtn.Value, "Elev",
             CurrentTool == EditorTool.Elevation ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
         DrawBtn(spriteBatch, pixel, font, _rampBtn.Value, "Ramp",
             CurrentTool == EditorTool.Ramp ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
         DrawBtn(spriteBatch, pixel, font, _unitBtn.Value, "Unit",
             CurrentTool == EditorTool.Unit ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
+        DrawBtn(spriteBatch, pixel, font, _resBtn.Value, "Res",
+            CurrentTool == EditorTool.Resource ? new Color(40, 100, 40, 200) : new Color(60, 60, 60, 200));
         cy += RowHeight;
 
-        // Row 1b: Unit type sub-row (only when Unit tool active)
+        // Sub-rows for Unit tool
         _unitTypeButtons.Clear();
+        _ironBtn = null;
+        _fissiumBtn = null;
         if (CurrentTool == EditorTool.Unit)
         {
             float btnX = x + Padding;
@@ -344,6 +394,17 @@ public class MapEditor : Panel
                 _selectedTeam == Team.Blue ? new Color(40, 40, 140, 200) : new Color(60, 60, 60, 200));
             cy += RowHeight;
         }
+        else if (CurrentTool == EditorTool.Resource)
+        {
+            // Resource type sub-row
+            _ironBtn = new Rectangle((int)(x + Padding), (int)cy, (int)ironBtnW, (int)BtnHeight);
+            _fissiumBtn = new Rectangle((int)(x + Padding + ironBtnW + BtnGap), (int)cy, (int)fissBtnW, (int)BtnHeight);
+            DrawBtn(spriteBatch, pixel, font, _ironBtn.Value, "Iron",
+                _selectedResource == ResourceType.Iron ? new Color(140, 90, 45, 200) : new Color(60, 60, 60, 200));
+            DrawBtn(spriteBatch, pixel, font, _fissiumBtn.Value, "Fissium",
+                _selectedResource == ResourceType.Fissium ? new Color(40, 140, 40, 200) : new Color(60, 60, 60, 200));
+            cy += RowHeight;
+        }
         else
         {
             _redBtn = null;
@@ -359,14 +420,14 @@ public class MapEditor : Panel
         DrawBtn(spriteBatch, pixel, font, _saveBtn.Value, "Save", new Color(40, 80, 40, 200));
         cy += RowHeight;
 
-        // Row 5: Status (if any)
+        // Status (if any)
         if (_statusTimer > 0 && _statusMessage != null)
         {
             spriteBatch.DrawString(font, _statusMessage, new Vector2(x + Padding, cy), Color.LimeGreen);
             cy += RowHeight;
         }
 
-        // Row 6: Help text
+        // Help text
         spriteBatch.DrawString(font, helpText, new Vector2(x + Padding, cy), Color.Gray);
     }
 

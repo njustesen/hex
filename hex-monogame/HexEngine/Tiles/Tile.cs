@@ -4,6 +4,8 @@ using HexEngine.Core;
 
 namespace HexEngine.Tiles;
 
+public enum ResourceType { None, Iron, Fissium }
+
 public class Tile
 {
     public Vector2 Pos { get; }
@@ -15,6 +17,7 @@ public class Tile
     public Unit? Unit { get; set; }
     public int Elevation { get; set; }
     public HashSet<int> Ramps { get; } = new();
+    public ResourceType Resource { get; set; }
 
     public Tile(Vector2 pos, int x, int y, float width, float height)
     {

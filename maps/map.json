@@ -407,6 +407,12 @@
       "unitTeam": "Red"
     },
     {
+      "x": 6,
+      "y": 11,
+      "elevation": 0,
+      "resource": "Iron"
+    },
+    {
       "x": 7,
       "y": 11,
       "elevation": 0,
@@ -445,6 +451,18 @@
       "elevation": 0,
       "unit": "Battlecruiser",
       "unitTeam": "Red"
+    },
+    {
+      "x": 7,
+      "y": 12,
+      "elevation": 0,
+      "resource": "Iron"
+    },
+    {
+      "x": 8,
+      "y": 12,
+      "elevation": 0,
+      "resource": "Fissium"
     },
     {
       "x": 10,

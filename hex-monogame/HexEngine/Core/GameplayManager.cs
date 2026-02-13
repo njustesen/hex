@@ -42,6 +42,17 @@ public class GameplayManager
     public Team CurrentTeam { get; private set; } = Team.Red;
     public GameMode Mode { get; set; }
 
+    // Resources
+    private Dictionary<Team, (int Iron, int Fissium)> _resources = new()
+    {
+        [Team.Red] = (0, 0),
+        [Team.Blue] = (0, 0),
+    };
+
+    // Mine placement mode
+    private bool _pendingMineMode;
+    private List<Tile>? _minePlacementTiles;
+
     public bool IsAnimating => _animationTimer > 0 || _executingPlan != null;
 
     /// The tile the unit would be at after all current plan actions.
@@ -60,13 +71,173 @@ public class GameplayManager
         _map = map;
         Mode = mode;
         CurrentTeam = Team.Red;
+        _resources[Team.Red] = (3, 3);
+        _resources[Team.Blue] = (3, 3);
         Deselect();
         RefreshVisibility();
+    }
+
+    public (int Iron, int Fissium) GetResources(Team team)
+    {
+        return _resources.TryGetValue(team, out var r) ? r : (0, 0);
+    }
+
+    public bool CanAfford(string type, Team team)
+    {
+        var def = UnitDefs.Get(type);
+        var r = GetResources(team);
+        return r.Iron >= def.CostIron && r.Fissium >= def.CostFissium;
+    }
+
+    public void SpendResources(string type, Team team)
+    {
+        var def = UnitDefs.Get(type);
+        var r = GetResources(team);
+        _resources[team] = (r.Iron - def.CostIron, r.Fissium - def.CostFissium);
+    }
+
+    public void RefundResources(string type, Team team)
+    {
+        var def = UnitDefs.Get(type);
+        var r = GetResources(team);
+        _resources[team] = (r.Iron + def.CostIron, r.Fissium + def.CostFissium);
+    }
+
+    public bool CanAffordMineUpgrade(Team team)
+    {
+        var r = GetResources(team);
+        return r.Iron >= 3;
+    }
+
+    public void SpendMineUpgrade(Team team)
+    {
+        var r = GetResources(team);
+        _resources[team] = (r.Iron - 3, r.Fissium);
+    }
+
+    public (int Iron, int Fissium) ComputeIncome(GridMap map, Team team)
+    {
+        int ironIncome = 3;
+        int fissiumIncome = 3;
+
+        for (int y = 0; y < map.Rows; y++)
+            for (int x = 0; x < map.Cols; x++)
+            {
+                var tile = map.Tiles[y][x];
+                if (tile.Unit == null || tile.Unit.Type != "Mine" || tile.Unit.Team != team) continue;
+                if (tile.Resource == ResourceType.None) continue;
+
+                // Check if adjacent to own CC
+                bool adjacentToCC = false;
+                for (int e = 0; e < map.EdgeCount; e++)
+                {
+                    var neighbor = map.GetNeighbor(tile, e);
+                    if (neighbor?.Unit != null && neighbor.Unit.Type == "CommandCenter" && neighbor.Unit.Team == team)
+                    {
+                        adjacentToCC = true;
+                        break;
+                    }
+                }
+                if (!adjacentToCC) continue;
+
+                int production = 2 + tile.Unit.MineLevel; // level 1 = 3, level 2 = 4, level 3 = 5
+                if (tile.Resource == ResourceType.Iron)
+                    ironIncome += production;
+                else if (tile.Resource == ResourceType.Fissium)
+                    fissiumIncome += production;
+            }
+
+        return (ironIncome, fissiumIncome);
+    }
+
+    public void AddIncome(GridMap map, Team team)
+    {
+        var r = GetResources(team);
+        var income = ComputeIncome(map, team);
+        _resources[team] = (r.Iron + income.Iron, r.Fissium + income.Fissium);
+    }
+
+    public void EnterMineMode()
+    {
+        if (_selectedUnitTile?.Unit == null || !_selectedUnitTile.Unit.CanProduce) return;
+        if (_selectedUnitTile.Unit.IsProducing) return;
+        if (!CanAfford("Mine", _selectedUnitTile.Unit.Team)) return;
+
+        _pendingMineMode = true;
+        _minePlacementTiles = ComputeValidMineTiles(_selectedUnitTile, _map!);
+        if (_minePlacementTiles.Count == 0)
+        {
+            _pendingMineMode = false;
+            _minePlacementTiles = null;
+        }
+    }
+
+    public void ExitMineMode()
+    {
+        _pendingMineMode = false;
+        _minePlacementTiles = null;
+    }
+
+    public bool IsMineMode => _pendingMineMode;
+
+    private List<Tile> ComputeValidMineTiles(Tile ccTile, GridMap map)
+    {
+        var valid = new List<Tile>();
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var neighbor = map.GetNeighbor(ccTile, e);
+            if (neighbor != null && neighbor.Resource != ResourceType.None && neighbor.Unit == null)
+                valid.Add(neighbor);
+        }
+        return valid;
+    }
+
+    public bool HasAdjacentResourceTiles(Tile ccTile, GridMap map)
+    {
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var neighbor = map.GetNeighbor(ccTile, e);
+            if (neighbor != null && neighbor.Resource != ResourceType.None && neighbor.Unit == null)
+                return true;
+        }
+        return false;
+    }
+
+    public void OnMineTileClicked(Tile tile)
+    {
+        if (!_pendingMineMode || _minePlacementTiles == null) return;
+        if (!_minePlacementTiles.Contains(tile)) { ExitMineMode(); return; }
+        if (_selectedUnitTile?.Unit == null) return;
+
+        var cc = _selectedUnitTile.Unit;
+        SpendResources("Mine", cc.Team);
+        cc.StartProduction("Mine");
+        cc.MineTargetCoords = (tile.X, tile.Y);
+        ExitMineMode();
+    }
+
+    public void UpgradeMine()
+    {
+        if (_selectedUnitTile?.Unit == null) return;
+        var unit = _selectedUnitTile.Unit;
+        if (unit.Type != "Mine" || unit.MineLevel >= 3) return;
+        if (!CanAffordMineUpgrade(unit.Team)) return;
+
+        SpendMineUpgrade(unit.Team);
+        unit.MineLevel++;
     }
 
     public void OnTileClicked(Tile tile, GridMap map)
     {
         _map = map;
+
+        // Mine placement mode intercept
+        if (_pendingMineMode)
+        {
+            OnMineTileClicked(tile);
+            return;
+        }
+
         var tilePos = $"({tile.X},{tile.Y})";
         var planDesc = $"plan={_planActions.Count} mp={_planRemainingMP} atk={_planRemainingAttacks}";
 
@@ -128,7 +299,7 @@ public class GameplayManager
         }
 
         // 5. Click different selectable unit → select it (team-filtered)
-        if (tile.Unit != null && (tile.Unit.CanMove || tile.Unit.CanAttack || tile.Unit.CanProduce) && CanControlUnit(tile.Unit))
+        if (tile.Unit != null && (tile.Unit.CanMove || tile.Unit.CanAttack || tile.Unit.CanProduce || tile.Unit.Type == "Mine") && CanControlUnit(tile.Unit))
         {
             System.Console.WriteLine($"[Click {tilePos}] Step5: SELECT unit {tile.Unit.Type} {planDesc}");
             SelectUnit(tile, map);
@@ -185,6 +356,7 @@ public class GameplayManager
     {
         _selectedUnitTile = tile;
         _pendingAttackTarget = null;
+        ExitMineMode();
         ClearPlan();
         RecomputeFromUnit(tile, map);
     }
@@ -417,6 +589,7 @@ public class GameplayManager
         _reachableTiles = null;
         _attackableTiles = null;
         _pendingAttackTarget = null;
+        ExitMineMode();
         ClearPlan();
     }
 
@@ -456,7 +629,7 @@ public class GameplayManager
     {
         bool executing = _executingPlan != null;
 
-        state.SelectedUnitTile = executing ? null : _selectedUnitTile;
+        state.SelectedUnitTile = executing || _pendingMineMode ? null : _selectedUnitTile;
 
         bool hasPlan = _planActions.Count > 0;
 
@@ -524,18 +697,42 @@ public class GameplayManager
         state.CurrentTeam = CurrentTeam;
         state.VisibleTiles = _visibleTiles;
         state.IsEditor = Mode == GameMode.Editor;
+
+        // Resources
+        var res = GetResources(CurrentTeam);
+        state.TeamIron = res.Iron;
+        state.TeamFissium = res.Fissium;
+
+        if (_map != null)
+        {
+            var income = ComputeIncome(_map, CurrentTeam);
+            state.TeamIronIncome = income.Iron;
+            state.TeamFissiumIncome = income.Fissium;
+        }
+
+        // Mine placement
+        state.MinePlacementTiles = _pendingMineMode ? _minePlacementTiles : null;
     }
 
     public void StartProduction(string type)
     {
         if (_selectedUnitTile?.Unit == null || !_selectedUnitTile.Unit.CanProduce) return;
+        if (_selectedUnitTile.Unit.IsProducing) return;
+        var team = _selectedUnitTile.Unit.Team;
+        if (!CanAfford(type, team)) return;
+        SpendResources(type, team);
         _selectedUnitTile.Unit.StartProduction(type);
     }
 
     public void CancelProduction()
     {
         if (_selectedUnitTile?.Unit == null || !_selectedUnitTile.Unit.CanProduce) return;
+        if (!_selectedUnitTile.Unit.IsProducing) return;
+        var type = _selectedUnitTile.Unit.ProducingType!;
+        var team = _selectedUnitTile.Unit.Team;
         _selectedUnitTile.Unit.CancelProduction();
+        _selectedUnitTile.Unit.MineTargetCoords = null;
+        RefundResources(type, team);
     }
 
     public void EndTurn(GridMap map)
@@ -543,6 +740,7 @@ public class GameplayManager
         _map = map;
         Deselect();
         CurrentTeam = CurrentTeam == Team.Red ? Team.Blue : Team.Red;
+        AddIncome(map, CurrentTeam);
         AdvanceProduction(map);
         for (int y = 0; y < map.Rows; y++)
             for (int x = 0; x < map.Cols; x++)
@@ -570,16 +768,38 @@ public class GameplayManager
 
                 if (unit.ProductionTurnsLeft <= 0)
                 {
-                    var freeTile = FindFreeAdjacentTile(map, tile);
-                    if (freeTile != null)
+                    // Mine production: spawn at target coords
+                    if (unit.ProducingType == "Mine" && unit.MineTargetCoords.HasValue)
                     {
-                        var newUnit = new Unit(unit.ProducingType!) { Team = unit.Team };
-                        newUnit.MovementPoints = 0;
-                        newUnit.AttacksRemaining = 0;
-                        freeTile.Unit = newUnit;
-                        unit.CancelProduction();
+                        var (mx, my) = unit.MineTargetCoords.Value;
+                        if (my >= 0 && my < map.Rows && mx >= 0 && mx < map.Cols)
+                        {
+                            var targetTile = map.Tiles[my][mx];
+                            if (targetTile.Unit == null)
+                            {
+                                var newUnit = new Unit("Mine") { Team = unit.Team };
+                                newUnit.MovementPoints = 0;
+                                newUnit.AttacksRemaining = 0;
+                                targetTile.Unit = newUnit;
+                                unit.MineTargetCoords = null;
+                                unit.CancelProduction();
+                            }
+                            // If target occupied, waits
+                        }
                     }
-                    // If no free tile, stays at 0 and waits
+                    else
+                    {
+                        var freeTile = FindFreeAdjacentTile(map, tile);
+                        if (freeTile != null)
+                        {
+                            var newUnit = new Unit(unit.ProducingType!) { Team = unit.Team };
+                            newUnit.MovementPoints = 0;
+                            newUnit.AttacksRemaining = 0;
+                            freeTile.Unit = newUnit;
+                            unit.CancelProduction();
+                        }
+                        // If no free tile, stays at 0 and waits
+                    }
                 }
             }
     }
@@ -589,7 +809,7 @@ public class GameplayManager
         for (int e = 0; e < map.EdgeCount; e++)
         {
             var neighbor = map.GetNeighbor(tile, e);
-            if (neighbor != null && neighbor.Unit == null)
+            if (neighbor != null && neighbor.Unit == null && neighbor.Resource == ResourceType.None)
                 return neighbor;
         }
         return null;

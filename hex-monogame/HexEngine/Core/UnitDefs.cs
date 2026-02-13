@@ -32,6 +32,8 @@ public class UnitDef
     public string Shape { get; set; } = "circle";
     public float Scale { get; set; } = 0.25f;
     public float Size { get; set; } = 0.5f;
+    public int CostIron { get; set; }
+    public int CostFissium { get; set; }
     public Dictionary<string, UnitColorDef> Colors { get; set; } = new();
 }
 
@@ -85,5 +87,20 @@ public static class UnitDefs
     {
         EnsureLoaded();
         return _defs.ContainsKey(type);
+    }
+
+    /// Convert PascalCase type name to display name with spaces (e.g. "LandSpeeder" → "Land Speeder").
+    public static string DisplayName(string type)
+    {
+        if (string.IsNullOrEmpty(type)) return type;
+        var sb = new System.Text.StringBuilder();
+        sb.Append(type[0]);
+        for (int i = 1; i < type.Length; i++)
+        {
+            if (char.IsUpper(type[i]) && !char.IsUpper(type[i - 1]))
+                sb.Append(' ');
+            sb.Append(type[i]);
+        }
+        return sb.ToString();
     }
 }

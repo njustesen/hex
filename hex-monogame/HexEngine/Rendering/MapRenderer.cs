@@ -44,6 +44,20 @@ public class MapRenderer
                 DrawRampCorners(drawer, vp, state, tile, topColor, fogStrength);
         }
 
+        // Ground unit stat bars pass — drawn after all tiles so bars aren't covered
+        foreach (var tile in sortedTiles)
+        {
+            bool tileVisible = state.VisibleTiles == null || state.VisibleTiles.Contains(tile);
+            if (tile.Unit != null && !tile.Unit.IsFlying && tileVisible)
+            {
+                var screenPoints = vp.GetTileScreenPoints(tile);
+                float fogFactor = UnitRenderer.ComputeFogFactor(vp, tile, fogStrength);
+                bool isEnemy = state.VisibleTiles != null && tile.Unit.Team != state.CurrentTeam;
+                var def = UnitDefs.Get(tile.Unit.Type);
+                UnitRenderer.GetRenderer(def.Shape).DrawStatBars(drawer, vp, tile, screenPoints, fogFactor, isEnemy);
+            }
+        }
+
         // Flying units pass — drawn after all tiles and ground units
         foreach (var tile in sortedTiles)
         {
@@ -69,6 +83,9 @@ public class MapRenderer
             UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor,
                 isEnemy: false, isEditor: state.IsEditor, unitOverride: state.ExecUnit);
         }
+
+        // Connection arms from mines to CCs
+        DrawMineConnectionArms(drawer, vp, state, fogStrength);
 
         // Plan visualization (drawn on top)
         DrawPlanVisualization(drawer, vp, state, fogStrength);
@@ -182,6 +199,46 @@ public class MapRenderer
         var hitColor = new Color(255, 100, 60, hitAlpha);
         drawer.DrawCircle(targetCenter, hitRadius, hitColor);
         drawer.DrawFilledCircle(targetCenter, hitRadius * 0.5f, new Color(255, 255, 255, (int)(150 * t)));
+    }
+
+    private void DrawMineConnectionArms(PrimitiveDrawer drawer, Viewport vp, InteractionState state, float fogStrength)
+    {
+        for (int y = 0; y < vp.Map.Rows; y++)
+            for (int x = 0; x < vp.Map.Cols; x++)
+            {
+                var tile = vp.Map.Tiles[y][x];
+                if (tile.Unit == null || tile.Unit.Type != "Mine") continue;
+                if (tile.Resource == ResourceType.None) continue;
+                bool tileVisible = state.VisibleTiles == null || state.VisibleTiles.Contains(tile);
+                if (!tileVisible) continue;
+
+                // Find adjacent friendly CC
+                for (int e = 0; e < vp.Map.EdgeCount; e++)
+                {
+                    var neighbor = vp.Map.GetNeighbor(tile, e);
+                    if (neighbor?.Unit != null && neighbor.Unit.Type == "CommandCenter" && neighbor.Unit.Team == tile.Unit.Team)
+                    {
+                        var mineCenter = GetTileScreenCenter(vp, tile);
+                        var ccCenter = GetTileScreenCenter(vp, neighbor);
+                        float fogFactor = UnitRenderer.ComputeFogFactor(vp, tile, fogStrength);
+                        Color armColor = tile.Resource == ResourceType.Iron
+                            ? ApplyFog(new Color(140, 90, 45, 200), fogFactor)
+                            : ApplyFog(new Color(60, 200, 60, 200), fogFactor);
+
+                        // Draw thick arm (3 parallel lines)
+                        var dir = ccCenter - mineCenter;
+                        if (dir.LengthSquared() > 0)
+                        {
+                            dir.Normalize();
+                            var perp = new Vector2(-dir.Y, dir.X);
+                            drawer.DrawLine(mineCenter, ccCenter, armColor);
+                            drawer.DrawLine(mineCenter + perp, ccCenter + perp, armColor);
+                            drawer.DrawLine(mineCenter - perp, ccCenter - perp, armColor);
+                        }
+                        break;
+                    }
+                }
+            }
     }
 
     private static Vector2 GetTileScreenCenter(Viewport vp, Tile tile)
@@ -528,12 +585,48 @@ public class MapRenderer
             drawer.DrawPolygonOutline(innerPoints, outlineColor);
         }
 
-        // Draw ground unit only on visible tiles
+        // Resource overlay diamond
+        if (tile.Resource != ResourceType.None)
+        {
+            var (resCenter, _) = ComputeInnerShape(screenPoints, vertexCount, 1f);
+            float resR = 10f;
+            Color resColor = tile.Resource == ResourceType.Iron
+                ? ApplyFog(new Color(140, 90, 45), fogFactor)
+                : ApplyFog(new Color(60, 200, 60), fogFactor);
+            var resPts = new[]
+            {
+                new Vector2(resCenter.X, resCenter.Y - resR),
+                new Vector2(resCenter.X + resR, resCenter.Y),
+                new Vector2(resCenter.X, resCenter.Y + resR),
+                new Vector2(resCenter.X - resR, resCenter.Y),
+            };
+            drawer.DrawFilledPolygon(resPts, resColor);
+        }
+
+        // Mine placement highlight
+        if (tileVisible && state.MinePlacementTiles != null && state.MinePlacementTiles.Contains(tile))
+        {
+            bool useInner = state.InnerShapeScale > 0f && state.InnerShapeScale < 1f;
+            Color mineHighlight = tile.Resource == ResourceType.Iron
+                ? ApplyFog(new Color(220, 160, 60), fogFactor)
+                : ApplyFog(new Color(60, 220, 60), fogFactor);
+            if (useInner)
+            {
+                var (_, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+                drawer.DrawFilledPolygon(innerPts, mineHighlight);
+            }
+            else
+            {
+                drawer.DrawFilledPolygon(screenPoints, mineHighlight);
+            }
+        }
+
+        // Draw ground unit only on visible tiles (stat bars deferred to separate pass)
         if (tile.Unit != null && !tile.Unit.IsFlying && tileVisible)
         {
             bool isEnemy = state.VisibleTiles != null && tile.Unit.Team != state.CurrentTeam;
             var def = UnitDefs.Get(tile.Unit.Type);
-            UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor, isEnemy, state.IsEditor);
+            UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor, isEnemy, state.IsEditor, deferStatBars: true);
         }
     }
 
