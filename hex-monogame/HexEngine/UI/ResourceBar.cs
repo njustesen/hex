@@ -1,6 +1,9 @@
+using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using HexEngine.Core;
+using HexEngine.Rendering;
 
 namespace HexEngine.UI;
 
@@ -11,19 +14,27 @@ public class ResourceBar
     private static readonly Color FissiumColor = new(80, 220, 80);
     private static readonly Color FissiumDim = new(40, 110, 40);
 
+    private const float IconSize = 16f;
+    private const float IconGap = 3f;
+
+    private readonly List<(IconType Type, float Cx, float Cy, float Size, Color Color)> _iconData = new();
+
     public void Draw(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, InteractionState state, int screenWidth)
     {
-        string ironText = $"Iron: {state.TeamIron}";
+        _iconData.Clear();
+
+        string ironAmt = $"{state.TeamIron}";
         string ironIncome = $"+{state.TeamIronIncome}";
-        string fissText = $"Fissium: {state.TeamFissium}";
+        string fissAmt = $"{state.TeamFissium}";
         string fissIncome = $"+{state.TeamFissiumIncome}";
 
         float gap = 24f;
-        float ironW = font.MeasureString(ironText).X;
+        float ironAmtW = font.MeasureString(ironAmt).X;
         float ironIncW = font.MeasureString(ironIncome).X;
-        float fissW = font.MeasureString(fissText).X;
+        float fissAmtW = font.MeasureString(fissAmt).X;
         float fissIncW = font.MeasureString(fissIncome).X;
-        float totalW = ironW + ironIncW + gap + fissW + fissIncW;
+        float iconSlot = IconSize + IconGap;
+        float totalW = iconSlot + ironAmtW + ironIncW + gap + iconSlot + fissAmtW + fissIncW;
         float lineH = font.LineSpacing;
 
         float pad = 8f;
@@ -33,16 +44,27 @@ public class ResourceBar
         // Background
         spriteBatch.Draw(pixel, new Rectangle((int)(x - pad), (int)(y - pad / 2f), (int)(totalW + pad * 2), (int)(lineH + pad)), new Color(0, 0, 0, 160));
 
-        // Iron text + income
+        // Iron cube icon + amount + income
         float cx = x;
-        spriteBatch.DrawString(font, ironText, new Vector2(cx, y), IronColor);
-        cx += ironW;
+        _iconData.Add((IconType.IronCube, cx + IconSize / 2f, y + lineH / 2f, IconSize, IronColor));
+        cx += iconSlot;
+        spriteBatch.DrawString(font, ironAmt, new Vector2(cx, y), IronColor);
+        cx += ironAmtW;
         spriteBatch.DrawString(font, ironIncome, new Vector2(cx, y), IronDim);
         cx += ironIncW + gap;
 
-        // Fissium text + income
-        spriteBatch.DrawString(font, fissText, new Vector2(cx, y), FissiumColor);
-        cx += fissW;
+        // Fissium cube icon + amount + income
+        _iconData.Add((IconType.FissiumCube, cx + IconSize / 2f, y + lineH / 2f, IconSize, FissiumColor));
+        cx += iconSlot;
+        spriteBatch.DrawString(font, fissAmt, new Vector2(cx, y), FissiumColor);
+        cx += fissAmtW;
         spriteBatch.DrawString(font, fissIncome, new Vector2(cx, y), FissiumDim);
+    }
+
+    /// Draw resource cube icons (call in PrimitiveDrawer pass).
+    public void DrawIcons(PrimitiveDrawer drawer)
+    {
+        foreach (var (type, cx, cy, size, color) in _iconData)
+            IconRenderer.Draw(drawer, type, cx, cy, size, color);
     }
 }

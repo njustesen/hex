@@ -65,7 +65,7 @@ public class Toolbar : Panel
         }
     }
 
-    public void Draw(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, Team currentTeam)
+    public void Draw(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel, Team currentTeam, int turnNumber = 1)
     {
         float x = X;
         float y = Y;
@@ -90,5 +90,11 @@ public class Toolbar : Panel
             ? new Color(160, 40, 40, 200)
             : new Color(40, 40, 160, 200);
         DrawBtn(spriteBatch, pixel, font, _etBtnRect, turnLabel, turnColor);
+
+        // Turn counter
+        string turnNum = $"Turn {turnNumber}";
+        float turnNumX = _etBtnRect.X + _etBtnRect.Width + BtnGap + 4;
+        float turnNumY = y + (BtnH - font.LineSpacing) / 2f;
+        spriteBatch.DrawString(font, turnNum, new Vector2(turnNumX, turnNumY), Color.LightGray);
     }
 }

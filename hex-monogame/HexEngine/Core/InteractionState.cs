@@ -46,6 +46,9 @@ public class InteractionState
     // Mode
     public bool IsEditor { get; set; }
 
+    // Turn
+    public int TurnNumber { get; set; }
+
     // Resources
     public int TeamIron { get; set; }
     public int TeamFissium { get; set; }

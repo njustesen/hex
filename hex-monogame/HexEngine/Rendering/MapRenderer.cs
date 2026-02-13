@@ -585,11 +585,18 @@ public class MapRenderer
             drawer.DrawPolygonOutline(innerPoints, outlineColor);
         }
 
-        // Resource overlay diamond
+        // Resource overlay diamond (scales with tile screen size)
         if (tile.Resource != ResourceType.None)
         {
             var (resCenter, _) = ComputeInnerShape(screenPoints, vertexCount, 1f);
-            float resR = 10f;
+            // Compute screen-space half-width of tile for scaling
+            float sMinX2 = float.MaxValue, sMaxX2 = float.MinValue;
+            for (int i = 0; i < vertexCount; i++)
+            {
+                if (screenPoints[i].X < sMinX2) sMinX2 = screenPoints[i].X;
+                if (screenPoints[i].X > sMaxX2) sMaxX2 = screenPoints[i].X;
+            }
+            float resR = Math.Max(3f, (sMaxX2 - sMinX2) * 0.15f);
             Color resColor = tile.Resource == ResourceType.Iron
                 ? ApplyFog(new Color(140, 90, 45), fogFactor)
                 : ApplyFog(new Color(60, 200, 60), fogFactor);

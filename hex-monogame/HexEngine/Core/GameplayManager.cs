@@ -40,6 +40,7 @@ public class GameplayManager
     private GridMap? _map;
     private HashSet<Tile>? _visibleTiles;
     public Team CurrentTeam { get; private set; } = Team.Red;
+    public int TurnNumber { get; private set; } = 1;
     public GameMode Mode { get; set; }
 
     // Resources
@@ -71,6 +72,7 @@ public class GameplayManager
         _map = map;
         Mode = mode;
         CurrentTeam = Team.Red;
+        TurnNumber = 1;
         _resources[Team.Red] = (3, 3);
         _resources[Team.Blue] = (3, 3);
         Deselect();
@@ -695,6 +697,7 @@ public class GameplayManager
 
         // Turn & visibility
         state.CurrentTeam = CurrentTeam;
+        state.TurnNumber = TurnNumber;
         state.VisibleTiles = _visibleTiles;
         state.IsEditor = Mode == GameMode.Editor;
 
@@ -740,6 +743,7 @@ public class GameplayManager
         _map = map;
         Deselect();
         CurrentTeam = CurrentTeam == Team.Red ? Team.Blue : Team.Red;
+        if (CurrentTeam == Team.Red) TurnNumber++;
         AddIncome(map, CurrentTeam);
         AdvanceProduction(map);
         for (int y = 0; y < map.Rows; y++)

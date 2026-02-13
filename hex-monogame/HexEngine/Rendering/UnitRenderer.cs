@@ -255,7 +255,7 @@ public abstract class UnitRenderer
 
         Vector2 drawCenter = new Vector2(cx, cy);
         Vector2 wp = Vector2.Zero;
-        float r = size * 0.35f;
+        float r = def.Size * size * 0.6f;
 
         Vector2 W(float x, float y) => new Vector2(cx + x, cy + y);
 

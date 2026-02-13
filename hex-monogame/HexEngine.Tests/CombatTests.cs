@@ -643,12 +643,12 @@ public class CombatTests
     public void ProductionTime_LoadedFromDefs()
     {
         Assert.Equal(1, UnitDefs.Get("Marine").ProductionTime);
-        Assert.Equal(2, UnitDefs.Get("Tank").ProductionTime);
-        Assert.Equal(2, UnitDefs.Get("Fighter").ProductionTime);
+        Assert.Equal(1, UnitDefs.Get("Tank").ProductionTime);
+        Assert.Equal(1, UnitDefs.Get("Fighter").ProductionTime);
         Assert.Equal(1, UnitDefs.Get("LandSpeeder").ProductionTime);
-        Assert.Equal(2, UnitDefs.Get("Bunker").ProductionTime);
-        Assert.Equal(2, UnitDefs.Get("AntiAirTurret").ProductionTime);
-        Assert.Equal(3, UnitDefs.Get("Battlecruiser").ProductionTime);
+        Assert.Equal(1, UnitDefs.Get("Bunker").ProductionTime);
+        Assert.Equal(1, UnitDefs.Get("AntiAirTurret").ProductionTime);
+        Assert.Equal(1, UnitDefs.Get("Battlecruiser").ProductionTime);
         Assert.Equal(0, UnitDefs.Get("CommandCenter").ProductionTime);
     }
 
@@ -734,26 +734,19 @@ public class CombatTests
     }
 
     [Fact]
-    public void MultiTurnProduction_Tank()
+    public void Production_Tank_CompletesInOneTurn()
     {
         var map = CreateFlatMap();
         var ccTile = map.Tiles[5][5];
         var cc = new Unit("CommandCenter") { Team = Team.Red };
-        cc.StartProduction("Tank"); // 2 turns
+        cc.StartProduction("Tank"); // 1 turn
         ccTile.Unit = cc;
 
         var gm = new GameplayManager();
 
-        // Turn 1: Red → Blue → Red (advances production by 1)
+        // Red → Blue → Red (production 1→0, spawn)
         gm.EndTurn(map); // → Blue
-        gm.EndTurn(map); // → Red, production 2→1
-
-        Assert.True(cc.IsProducing);
-        Assert.Equal(1, cc.ProductionTurnsLeft);
-
-        // Turn 2: Red → Blue → Red (production done, spawns)
-        gm.EndTurn(map); // → Blue
-        gm.EndTurn(map); // → Red, production 1→0, spawn
+        gm.EndTurn(map); // → Red, production done
 
         Assert.False(cc.IsProducing);
         bool found = false;

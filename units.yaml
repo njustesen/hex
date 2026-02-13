@@ -32,7 +32,7 @@ units:
     maxAttacks: 1
     flying: false
     sight: 3
-    productionTime: 2
+    productionTime: 1
     costIron: 3
     costFissium: 2
     shape: rect_turret
@@ -59,7 +59,7 @@ units:
     maxAttacks: 1
     flying: true
     sight: 5
-    productionTime: 2
+    productionTime: 1
     costIron: 2
     costFissium: 3
     shape: arrow
@@ -105,7 +105,7 @@ units:
     maxAttacks: 1
     flying: false
     sight: 3
-    productionTime: 2
+    productionTime: 1
     costIron: 3
     costFissium: 0
     shape: circle_turret
@@ -133,7 +133,7 @@ units:
     maxAttacks: 1
     flying: false
     sight: 5
-    productionTime: 2
+    productionTime: 1
     costIron: 2
     costFissium: 0
     shape: missile_tower
@@ -160,7 +160,7 @@ units:
     maxAttacks: 2
     flying: true
     sight: 4
-    productionTime: 3
+    productionTime: 1
     costIron: 5
     costFissium: 5
     shape: hexagon

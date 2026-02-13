@@ -350,7 +350,7 @@ public class HexGame : Game
         _infoPanel.Draw(_spriteBatch, _debugFont, _pixel, _interaction, _gameplay);
 
         _toolbar.SetState(_debugMenu.Visible, _editor.Visible);
-        _toolbar.Draw(_spriteBatch, _debugFont, _pixel, _gameplay.CurrentTeam);
+        _toolbar.Draw(_spriteBatch, _debugFont, _pixel, _gameplay.CurrentTeam, _gameplay.TurnNumber);
 
         // Resource bar (right of toolbar)
         _resourceBar.Draw(_spriteBatch, _debugFont, _pixel, _interaction, EngineConfig.Width);
@@ -363,14 +363,19 @@ public class HexGame : Game
 
         _spriteBatch.End();
 
-        // Draw unit previews in info panel build squares (PrimitiveDrawer on top of panel backgrounds)
+        // PrimitiveDrawer pass: unit previews + stat/resource icons
         _drawer.UpdateProjection(EngineConfig.Width, EngineConfig.Height);
         _infoPanel.DrawUnitPreviews(_drawer);
+        _infoPanel.DrawIcons(_drawer);
+        _resourceBar.DrawIcons(_drawer);
 
         // Draw tooltip on top of unit previews
         _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
         _infoPanel.DrawTooltip(_spriteBatch, _debugFont, _pixel);
         _spriteBatch.End();
+
+        // Tooltip icons (drawn after tooltip background)
+        _infoPanel.DrawTooltipIcons(_drawer);
 
         // Draw minimap border and cursor using primitives
         _drawer.DrawRectOutline(_minimap.ScreenX1 - 1, _minimap.ScreenY1 - 1,
