@@ -18,6 +18,7 @@ public class Tile
     public int Elevation { get; set; }
     public HashSet<int> Ramps { get; } = new();
     public ResourceType Resource { get; set; }
+    public bool IsStartingLocation { get; set; }
 
     public Tile(Vector2 pos, int x, int y, float width, float height)
     {

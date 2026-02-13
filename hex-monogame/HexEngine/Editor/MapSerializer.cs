@@ -50,7 +50,7 @@ public static class MapSerializer
             for (int x = 0; x < map.Cols; x++)
             {
                 var tile = map.Tiles[y][x];
-                if (tile.Elevation > 0 || tile.Ramps.Count > 0 || tile.Unit != null || tile.Resource != ResourceType.None)
+                if (tile.Elevation > 0 || tile.Ramps.Count > 0 || tile.Unit != null || tile.Resource != ResourceType.None || tile.IsStartingLocation)
                 {
                     var td = new TileData { X = x, Y = y, Elevation = tile.Elevation };
                     if (tile.Ramps.Count > 0)
@@ -62,6 +62,8 @@ public static class MapSerializer
                     }
                     if (tile.Resource != ResourceType.None)
                         td.Resource = tile.Resource.ToString();
+                    if (tile.IsStartingLocation)
+                        td.StartingLocation = true;
                     data.Tiles.Add(td);
                 }
             }
@@ -129,6 +131,14 @@ public static class MapSerializer
                     continue;
                 if (Enum.TryParse<ResourceType>(td.Resource, out var res))
                     map.Tiles[td.Y][td.X].Resource = res;
+            }
+
+            // Fifth pass: restore starting locations
+            foreach (var td in data.Tiles)
+            {
+                if (td.StartingLocation != true || td.Y < 0 || td.Y >= map.Rows || td.X < 0 || td.X >= map.Cols)
+                    continue;
+                map.Tiles[td.Y][td.X].IsStartingLocation = true;
             }
         }
 
@@ -207,5 +217,8 @@ public static class MapSerializer
 
         [JsonPropertyName("resource")]
         public string? Resource { get; set; }
+
+        [JsonPropertyName("startingLocation")]
+        public bool? StartingLocation { get; set; }
     }
 }

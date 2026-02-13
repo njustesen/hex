@@ -1389,4 +1389,110 @@ public class CombatTests
         Assert.False(buildTile.Unit.IsUnderConstruction);
         Assert.Equal(buildTile.Unit.MaxHealth, buildTile.Unit.Health);
     }
+
+    // --- Starting Location tests ---
+
+    [Fact]
+    public void StartingLocations_Exactly2_SpawnsCCAndMine()
+    {
+        var map = CreateFlatMap();
+        var tile1 = map.Tiles[2][2];
+        var tile2 = map.Tiles[7][7];
+
+        tile1.IsStartingLocation = true;
+        tile2.IsStartingLocation = true;
+
+        // Place iron adjacent to both starting locations
+        var adj1 = map.GetNeighbor(tile1, 0)!;
+        adj1.Resource = Tiles.ResourceType.Iron;
+        var adj2 = map.GetNeighbor(tile2, 0)!;
+        adj2.Resource = Tiles.ResourceType.Iron;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Starting locations should be cleared
+        Assert.False(tile1.IsStartingLocation);
+        Assert.False(tile2.IsStartingLocation);
+
+        // Both tiles should have CommandCenters
+        Assert.NotNull(tile1.Unit);
+        Assert.Equal("CommandCenter", tile1.Unit!.Type);
+        Assert.NotNull(tile2.Unit);
+        Assert.Equal("CommandCenter", tile2.Unit!.Type);
+
+        // Teams should be different
+        Assert.NotEqual(tile1.Unit.Team, tile2.Unit.Team);
+
+        // Adjacent iron tiles should have mines with matching teams
+        Assert.NotNull(adj1.Unit);
+        Assert.Equal("Mine", adj1.Unit!.Type);
+        Assert.Equal(tile1.Unit.Team, adj1.Unit.Team);
+        Assert.False(adj1.Unit.IsUnderConstruction);
+
+        Assert.NotNull(adj2.Unit);
+        Assert.Equal("Mine", adj2.Unit!.Type);
+        Assert.Equal(tile2.Unit.Team, adj2.Unit.Team);
+        Assert.False(adj2.Unit.IsUnderConstruction);
+    }
+
+    [Fact]
+    public void StartingLocations_NoAdjacentIron_CCOnly()
+    {
+        var map = CreateFlatMap();
+        var tile1 = map.Tiles[2][2];
+        var tile2 = map.Tiles[7][7];
+
+        tile1.IsStartingLocation = true;
+        tile2.IsStartingLocation = true;
+
+        // No iron placed adjacent to starting locations
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Both tiles should have CCs
+        Assert.NotNull(tile1.Unit);
+        Assert.Equal("CommandCenter", tile1.Unit!.Type);
+        Assert.NotNull(tile2.Unit);
+        Assert.Equal("CommandCenter", tile2.Unit!.Type);
+
+        // No mines should be placed on adjacent tiles
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var n1 = map.GetNeighbor(tile1, e);
+            if (n1 != null) Assert.Null(n1.Unit);
+            var n2 = map.GetNeighbor(tile2, e);
+            if (n2 != null) Assert.Null(n2.Unit);
+        }
+    }
+
+    [Fact]
+    public void StartingLocations_Not2_NoProcessing()
+    {
+        var map = CreateFlatMap();
+        var tile1 = map.Tiles[2][2];
+
+        // Only 1 starting location
+        tile1.IsStartingLocation = true;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Should not be processed — still marked as starting location
+        Assert.True(tile1.IsStartingLocation);
+        Assert.Null(tile1.Unit);
+
+        // Test with 3 starting locations
+        var map2 = CreateFlatMap();
+        map2.Tiles[2][2].IsStartingLocation = true;
+        map2.Tiles[5][5].IsStartingLocation = true;
+        map2.Tiles[7][7].IsStartingLocation = true;
+
+        var gm2 = new GameplayManager();
+        gm2.StartGame(map2, GameMode.HotSeat);
+
+        Assert.True(map2.Tiles[2][2].IsStartingLocation);
+        Assert.Null(map2.Tiles[2][2].Unit);
+    }
 }

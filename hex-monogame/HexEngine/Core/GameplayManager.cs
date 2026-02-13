@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using HexEngine.Config;
@@ -78,8 +79,44 @@ public class GameplayManager
         TurnNumber = 1;
         _resources[Team.Red] = (3, 3);
         _resources[Team.Blue] = (3, 3);
+        if (mode != GameMode.Editor)
+            ProcessStartingLocations(map);
         Deselect();
         RefreshVisibility();
+    }
+
+    public void ProcessStartingLocations(GridMap map)
+    {
+        var startTiles = new List<Tile>();
+        for (int y = 0; y < map.Rows; y++)
+            for (int x = 0; x < map.Cols; x++)
+                if (map.Tiles[y][x].IsStartingLocation)
+                    startTiles.Add(map.Tiles[y][x]);
+
+        if (startTiles.Count != 2) return;
+
+        // Randomly assign Red/Blue to the two locations
+        var rng = new Random();
+        Team first = rng.Next(2) == 0 ? Team.Red : Team.Blue;
+        Team second = first == Team.Red ? Team.Blue : Team.Red;
+        var assignments = new[] { (startTiles[0], first), (startTiles[1], second) };
+
+        foreach (var (tile, team) in assignments)
+        {
+            tile.IsStartingLocation = false;
+            tile.Unit = new Unit("CommandCenter") { Team = team };
+
+            // Place mine on first adjacent iron tile
+            for (int e = 0; e < map.EdgeCount; e++)
+            {
+                var neighbor = map.GetNeighbor(tile, e);
+                if (neighbor != null && neighbor.Resource == ResourceType.Iron && neighbor.Unit == null)
+                {
+                    neighbor.Unit = new Unit("Mine") { Team = team };
+                    break;
+                }
+            }
+        }
     }
 
     public (int Iron, int Fissium) GetResources(Team team)

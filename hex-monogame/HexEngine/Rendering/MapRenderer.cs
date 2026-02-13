@@ -714,8 +714,36 @@ public class MapRenderer
             var def = UnitDefs.Get(tile.Unit.Type);
             UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor, isEnemy, state.IsEditor, deferStatBars: true);
         }
+
+        // Starting location marker (editor only)
+        if (tile.IsStartingLocation && state.IsEditor)
+        {
+            var (starCenter, _) = ComputeInnerShape(screenPoints, vertexCount, 1f);
+            float sMinX = float.MaxValue, sMaxX = float.MinValue;
+            for (int i = 0; i < vertexCount; i++)
+            {
+                if (screenPoints[i].X < sMinX) sMinX = screenPoints[i].X;
+                if (screenPoints[i].X > sMaxX) sMaxX = screenPoints[i].X;
+            }
+            float starR = Math.Max(4f, (sMaxX - sMinX) * 0.25f);
+            DrawStar(drawer, starCenter, starR, new Color(255, 220, 60));
+        }
     }
 
+
+    private static void DrawStar(PrimitiveDrawer drawer, Vector2 center, float radius, Color color)
+    {
+        int points = 5;
+        float innerRadius = radius * 0.45f;
+        var starPts = new Vector2[points * 2];
+        for (int i = 0; i < points * 2; i++)
+        {
+            float angle = -MathF.PI / 2f + i * MathF.PI / points;
+            float r = i % 2 == 0 ? radius : innerRadius;
+            starPts[i] = center + new Vector2(MathF.Cos(angle) * r, MathF.Sin(angle) * r);
+        }
+        drawer.DrawFilledPolygon(starPts, color);
+    }
 
     private void DrawGrid(PrimitiveDrawer drawer, Viewport vp, int gridSize)
     {
