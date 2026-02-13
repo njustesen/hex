@@ -28,6 +28,24 @@ public class Unit
     public bool IsFlying { get; }
     public int Sight { get; }
 
+    // Production
+    public bool CanProduce => Type == "CommandCenter";
+    public string? ProducingType { get; set; }
+    public int ProductionTurnsLeft { get; set; }
+    public bool IsProducing => ProducingType != null;
+
+    public void StartProduction(string type)
+    {
+        ProducingType = type;
+        ProductionTurnsLeft = UnitDefs.Get(type).ProductionTime;
+    }
+
+    public void CancelProduction()
+    {
+        ProducingType = null;
+        ProductionTurnsLeft = 0;
+    }
+
     public Unit() : this("Marine") { }
 
     public Unit(string type)

@@ -45,4 +45,7 @@ public class InteractionState
 
     // Mode
     public bool IsEditor { get; set; }
+
+    // Derived
+    public Unit? SelectedUnit => SelectedUnitTile?.Unit;
 }

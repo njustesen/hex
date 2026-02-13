@@ -407,6 +407,13 @@
       "unitTeam": "Red"
     },
     {
+      "x": 7,
+      "y": 11,
+      "elevation": 0,
+      "unit": "CommandCenter",
+      "unitTeam": "Red"
+    },
+    {
       "x": 9,
       "y": 11,
       "elevation": 0,

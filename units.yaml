@@ -9,6 +9,7 @@ units:
     maxAttacks: 1
     flying: false
     sight: 3
+    productionTime: 1
     shape: circle
     size: 0.25
     colors:
@@ -29,6 +30,7 @@ units:
     maxAttacks: 1
     flying: false
     sight: 3
+    productionTime: 2
     shape: rect_turret
     size: 0.4
     colors:
@@ -53,6 +55,7 @@ units:
     maxAttacks: 1
     flying: true
     sight: 5
+    productionTime: 2
     shape: arrow
     size: 0.36
     colors:
@@ -73,6 +76,7 @@ units:
     maxAttacks: 2
     flying: false
     sight: 4
+    productionTime: 1
     hover: 0.12
     shape: triangle
     size: 0.25
@@ -94,6 +98,7 @@ units:
     maxAttacks: 1
     flying: false
     sight: 3
+    productionTime: 2
     shape: circle_turret
     size: 0.35
     colors:
@@ -119,6 +124,7 @@ units:
     maxAttacks: 1
     flying: false
     sight: 5
+    productionTime: 2
     shape: missile_tower
     size: 0.35
     colors:
@@ -143,6 +149,7 @@ units:
     maxAttacks: 2
     flying: true
     sight: 4
+    productionTime: 3
     shape: hexagon
     size: 0.65
     colors:
@@ -156,3 +163,18 @@ units:
         outline: [30, 35, 100]
         turretFill: [70, 80, 200]
         turretOutline: [40, 45, 120]
+
+  CommandCenter:
+    movement: 0
+    health: 15
+    armor: 1
+    damage: 0
+    range: 0
+    canTargetAir: false
+    canTargetGround: false
+    maxAttacks: 0
+    flying: false
+    sight: 3
+    productionTime: 0
+    shape: command_center
+    size: 0.55

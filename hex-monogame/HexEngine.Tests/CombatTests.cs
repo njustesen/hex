@@ -606,4 +606,183 @@ public class CombatTests
         Assert.Equal(1, enemy.Health); // 3 - 2 = 1
         Assert.Equal(attacker, moveTile.Unit);
     }
+
+    // --- CommandCenter & Production tests ---
+
+    [Fact]
+    public void CommandCenter_HasCorrectStats()
+    {
+        var unit = new Unit("CommandCenter");
+        Assert.Equal(15, unit.MaxHealth);
+        Assert.Equal(1, unit.Armor);
+        Assert.Equal(0, unit.Damage);
+        Assert.Equal(0, unit.Range);
+        Assert.Equal(0, unit.MaxMovementPoints);
+        Assert.Equal(0, unit.MaxAttacks);
+        Assert.False(unit.CanTargetAir);
+        Assert.False(unit.CanTargetGround);
+        Assert.Equal(3, unit.Sight);
+    }
+
+    [Fact]
+    public void CommandCenter_CanProduce()
+    {
+        var cc = new Unit("CommandCenter");
+        Assert.True(cc.CanProduce);
+    }
+
+    [Fact]
+    public void CommandCenter_CannotAttackOrMove()
+    {
+        var cc = new Unit("CommandCenter");
+        Assert.False(cc.CanMove);
+        Assert.False(cc.CanAttack);
+    }
+
+    [Fact]
+    public void ProductionTime_LoadedFromDefs()
+    {
+        Assert.Equal(1, UnitDefs.Get("Marine").ProductionTime);
+        Assert.Equal(2, UnitDefs.Get("Tank").ProductionTime);
+        Assert.Equal(2, UnitDefs.Get("Fighter").ProductionTime);
+        Assert.Equal(1, UnitDefs.Get("LandSpeeder").ProductionTime);
+        Assert.Equal(2, UnitDefs.Get("Bunker").ProductionTime);
+        Assert.Equal(2, UnitDefs.Get("AntiAirTurret").ProductionTime);
+        Assert.Equal(3, UnitDefs.Get("Battlecruiser").ProductionTime);
+        Assert.Equal(0, UnitDefs.Get("CommandCenter").ProductionTime);
+    }
+
+    [Fact]
+    public void StartProduction_SetsFields()
+    {
+        var cc = new Unit("CommandCenter");
+        cc.StartProduction("Marine");
+
+        Assert.True(cc.IsProducing);
+        Assert.Equal("Marine", cc.ProducingType);
+        Assert.Equal(1, cc.ProductionTurnsLeft);
+    }
+
+    [Fact]
+    public void CancelProduction_ClearsFields()
+    {
+        var cc = new Unit("CommandCenter");
+        cc.StartProduction("Tank");
+        cc.CancelProduction();
+
+        Assert.False(cc.IsProducing);
+        Assert.Null(cc.ProducingType);
+        Assert.Equal(0, cc.ProductionTurnsLeft);
+    }
+
+    [Fact]
+    public void EndTurn_AdvancesProduction_SpawnsUnit()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        cc.StartProduction("Marine"); // 1 turn
+        ccTile.Unit = cc;
+
+        var gm = new GameplayManager();
+        // Red's turn → EndTurn switches to Blue (resets Blue, no production for Red)
+        // Then EndTurn again switches to Red and advances Red's production
+        gm.EndTurn(map); // → Blue's turn
+        gm.EndTurn(map); // → Red's turn, advances Red production
+
+        // Marine should be spawned on a free adjacent tile
+        Assert.False(cc.IsProducing);
+        bool found = false;
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var n = map.GetNeighbor(ccTile, e);
+            if (n?.Unit != null && n.Unit.Type == "Marine" && n.Unit.Team == Team.Red)
+            {
+                found = true;
+                // Spawned unit gets reset along with all team units
+                Assert.Equal(n.Unit.MaxMovementPoints, n.Unit.MovementPoints);
+                Assert.Equal(n.Unit.MaxAttacks, n.Unit.AttacksRemaining);
+                break;
+            }
+        }
+        Assert.True(found, "Produced Marine not found on adjacent tile");
+    }
+
+    [Fact]
+    public void Production_BlockedWhenNoFreeAdjacentTile()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        cc.StartProduction("Marine"); // 1 turn
+        ccTile.Unit = cc;
+
+        // Fill all adjacent tiles
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var n = map.GetNeighbor(ccTile, e);
+            if (n != null) n.Unit = new Unit("Marine") { Team = Team.Red };
+        }
+
+        var gm = new GameplayManager();
+        gm.EndTurn(map); // → Blue
+        gm.EndTurn(map); // → Red, tries to spawn but can't
+
+        // Still producing, turns left at 0 (waiting for free tile)
+        Assert.True(cc.IsProducing);
+        Assert.Equal(0, cc.ProductionTurnsLeft);
+    }
+
+    [Fact]
+    public void MultiTurnProduction_Tank()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        cc.StartProduction("Tank"); // 2 turns
+        ccTile.Unit = cc;
+
+        var gm = new GameplayManager();
+
+        // Turn 1: Red → Blue → Red (advances production by 1)
+        gm.EndTurn(map); // → Blue
+        gm.EndTurn(map); // → Red, production 2→1
+
+        Assert.True(cc.IsProducing);
+        Assert.Equal(1, cc.ProductionTurnsLeft);
+
+        // Turn 2: Red → Blue → Red (production done, spawns)
+        gm.EndTurn(map); // → Blue
+        gm.EndTurn(map); // → Red, production 1→0, spawn
+
+        Assert.False(cc.IsProducing);
+        bool found = false;
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var n = map.GetNeighbor(ccTile, e);
+            if (n?.Unit != null && n.Unit.Type == "Tank" && n.Unit.Team == Team.Red)
+            {
+                found = true;
+                break;
+            }
+        }
+        Assert.True(found, "Produced Tank not found on adjacent tile");
+    }
+
+    [Fact]
+    public void CommandCenter_IsSelectable()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        ccTile.Unit = cc;
+
+        var gm = new GameplayManager();
+        var state = new InteractionState();
+        gm.OnTileClicked(ccTile, map);
+        gm.Update(state);
+
+        Assert.Equal(ccTile, state.SelectedUnitTile);
+        Assert.Equal(cc, state.SelectedUnit);
+    }
 }

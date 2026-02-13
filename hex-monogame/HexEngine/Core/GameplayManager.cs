@@ -128,7 +128,7 @@ public class GameplayManager
         }
 
         // 5. Click different selectable unit → select it (team-filtered)
-        if (tile.Unit != null && (tile.Unit.CanMove || tile.Unit.CanAttack) && CanControlUnit(tile.Unit))
+        if (tile.Unit != null && (tile.Unit.CanMove || tile.Unit.CanAttack || tile.Unit.CanProduce) && CanControlUnit(tile.Unit))
         {
             System.Console.WriteLine($"[Click {tilePos}] Step5: SELECT unit {tile.Unit.Type} {planDesc}");
             SelectUnit(tile, map);
@@ -345,7 +345,7 @@ public class GameplayManager
 
         RefreshVisibility();
 
-        if (unit.CanMove || unit.CanAttack)
+        if (unit.CanMove || unit.CanAttack || unit.CanProduce)
             SelectUnit(finalTile, _map);
         else
             Deselect();
@@ -526,11 +526,24 @@ public class GameplayManager
         state.IsEditor = Mode == GameMode.Editor;
     }
 
+    public void StartProduction(string type)
+    {
+        if (_selectedUnitTile?.Unit == null || !_selectedUnitTile.Unit.CanProduce) return;
+        _selectedUnitTile.Unit.StartProduction(type);
+    }
+
+    public void CancelProduction()
+    {
+        if (_selectedUnitTile?.Unit == null || !_selectedUnitTile.Unit.CanProduce) return;
+        _selectedUnitTile.Unit.CancelProduction();
+    }
+
     public void EndTurn(GridMap map)
     {
         _map = map;
         Deselect();
         CurrentTeam = CurrentTeam == Team.Red ? Team.Blue : Team.Red;
+        AdvanceProduction(map);
         for (int y = 0; y < map.Rows; y++)
             for (int x = 0; x < map.Cols; x++)
             {
@@ -539,5 +552,46 @@ public class GameplayManager
                     unit.ResetTurn();
             }
         RefreshVisibility();
+    }
+
+    private void AdvanceProduction(GridMap map)
+    {
+        for (int y = 0; y < map.Rows; y++)
+            for (int x = 0; x < map.Cols; x++)
+            {
+                var tile = map.Tiles[y][x];
+                var unit = tile.Unit;
+                if (unit == null || unit.Team != CurrentTeam || !unit.IsProducing) continue;
+
+                if (unit.ProductionTurnsLeft > 0)
+                {
+                    unit.ProductionTurnsLeft--;
+                }
+
+                if (unit.ProductionTurnsLeft <= 0)
+                {
+                    var freeTile = FindFreeAdjacentTile(map, tile);
+                    if (freeTile != null)
+                    {
+                        var newUnit = new Unit(unit.ProducingType!) { Team = unit.Team };
+                        newUnit.MovementPoints = 0;
+                        newUnit.AttacksRemaining = 0;
+                        freeTile.Unit = newUnit;
+                        unit.CancelProduction();
+                    }
+                    // If no free tile, stays at 0 and waits
+                }
+            }
+    }
+
+    public static Tile? FindFreeAdjacentTile(GridMap map, Tile tile)
+    {
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var neighbor = map.GetNeighbor(tile, e);
+            if (neighbor != null && neighbor.Unit == null)
+                return neighbor;
+        }
+        return null;
     }
 }

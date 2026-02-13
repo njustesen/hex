@@ -27,6 +27,7 @@ public class UnitDef
     public int MaxAttacks { get; set; } = 1;
     public bool Flying { get; set; }
     public int Sight { get; set; } = 3;
+    public int ProductionTime { get; set; } = 1;
     public float Hover { get; set; }
     public string Shape { get; set; } = "circle";
     public float Scale { get; set; } = 0.25f;

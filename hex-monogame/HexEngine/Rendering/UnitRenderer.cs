@@ -18,6 +18,7 @@ public abstract class UnitRenderer
         ["hexagon"] = new UnitRenderers.HexagonUnitRenderer(),
         ["circle_turret"] = new UnitRenderers.CircleTurretUnitRenderer(),
         ["missile_tower"] = new UnitRenderers.MissileTowerUnitRenderer(),
+        ["command_center"] = new UnitRenderers.CommandCenterUnitRenderer(),
     };
     private static readonly UnitRenderer _fallback = new UnitRenderers.DiamondUnitRenderer();
 

@@ -30,6 +30,7 @@ public class HexGame : Game
     private MapRenderer _renderer = new();
     private InteractionState _interaction = new();
     private Toolbar _toolbar = new();
+    private InfoPanel _infoPanel = new();
     private GameplayManager _gameplay = new();
     private SpriteFont _debugFont = null!;
     private Texture2D _pixel = null!;
@@ -256,7 +257,15 @@ public class HexGame : Game
 
         _viewport.Update(seconds, _inputManager, _interaction);
 
-        bool uiConsumed = _toolbar.ConsumesClick || _debugMenu.ConsumesClick;
+        float minimapX = _minimap.ScreenX1;
+        _infoPanel.Update(_inputManager, _interaction, minimapX, EngineConfig.Width, EngineConfig.Height);
+
+        if (_infoPanel.ProductionStartType != null)
+            _gameplay.StartProduction(_infoPanel.ProductionStartType);
+        if (_infoPanel.ProductionCancelled)
+            _gameplay.CancelProduction();
+
+        bool uiConsumed = _toolbar.ConsumesClick || _debugMenu.ConsumesClick || _infoPanel.ConsumesClick;
 
         if (_editor.Visible)
         {
@@ -325,6 +334,8 @@ public class HexGame : Game
         if (_minimap.RenderTarget != null)
             _spriteBatch.Draw(_minimap.RenderTarget,
                 new Vector2(_minimap.ScreenX1, _minimap.ScreenY1), Color.White);
+
+        _infoPanel.Draw(_spriteBatch, _debugFont, _pixel, _interaction);
 
         _toolbar.SetState(_debugMenu.Visible, _editor.Visible);
         _toolbar.Draw(_spriteBatch, _debugFont, _pixel, _gameplay.CurrentTeam);
