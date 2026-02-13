@@ -486,12 +486,12 @@ public class MapRenderer
             {
                 if (shouldFill) drawer.DrawFilledPolygon(screenPoints, fillColor);
                 var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
-                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(60, 60, 160), fogFactor));
+                drawer.DrawFilledPolygon(innerPts, ApplyBrightness(foggedTopColor, 1.35f));
                 shouldFill = false;
             }
             else
             {
-                fillColor = ApplyFog(new Color(60, 60, 160), fogFactor);
+                fillColor = ApplyBrightness(foggedTopColor, 1.35f);
                 shouldFill = true;
             }
         }
@@ -516,12 +516,12 @@ public class MapRenderer
             {
                 if (shouldFill) drawer.DrawFilledPolygon(screenPoints, fillColor);
                 var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
-                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(80, 80, 180), fogFactor));
+                drawer.DrawFilledPolygon(innerPts, ApplyBrightness(foggedTopColor, 1.35f));
                 shouldFill = false;
             }
             else
             {
-                fillColor = ApplyFog(new Color(80, 80, 180), fogFactor);
+                fillColor = ApplyBrightness(foggedTopColor, 1.35f);
                 shouldFill = true;
             }
         }
@@ -554,6 +554,22 @@ public class MapRenderer
             else
             {
                 fillColor = ApplyFog(new Color(160, 160, 40), fogFactor);
+                shouldFill = true;
+            }
+        }
+
+        if (tileVisible && tile == state.SelectedBuildTile)
+        {
+            if (useInnerHighlight && shouldFill)
+            {
+                drawer.DrawFilledPolygon(screenPoints, fillColor);
+                var (center, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+                drawer.DrawFilledPolygon(innerPts, ApplyFog(new Color(40, 160, 40), fogFactor));
+                shouldFill = false;
+            }
+            else
+            {
+                fillColor = ApplyFog(new Color(40, 160, 40), fogFactor);
                 shouldFill = true;
             }
         }
@@ -626,6 +642,17 @@ public class MapRenderer
             {
                 drawer.DrawFilledPolygon(screenPoints, mineHighlight);
             }
+        }
+
+        // Buildable tile highlight — thin team-colored outline around inner shape
+        if (tileVisible && state.BuildableTiles != null && state.BuildableTiles.Contains(tile)
+            && state.InnerShapeScale > 0f && state.InnerShapeScale < 1f)
+        {
+            Color buildColor = state.CurrentTeam == Team.Red
+                ? ApplyFog(new Color(180, 40, 40), fogFactor)
+                : ApplyFog(new Color(40, 80, 180), fogFactor);
+            var (_, innerPts) = ComputeInnerShape(screenPoints, vertexCount, state.InnerShapeScale);
+            drawer.DrawPolygonOutline(innerPts, buildColor);
         }
 
         // Draw ground unit only on visible tiles (stat bars deferred to separate pass)

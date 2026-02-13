@@ -54,6 +54,9 @@ public class GameplayManager
     private bool _pendingMineMode;
     private List<Tile>? _minePlacementTiles;
 
+    // Build tile selection (for placing buildings on empty tiles)
+    private Tile? _selectedBuildTile;
+
     public bool IsAnimating => _animationTimer > 0 || _executingPlan != null;
 
     /// The tile the unit would be at after all current plan actions.
@@ -213,9 +216,16 @@ public class GameplayManager
 
         var cc = _selectedUnitTile.Unit;
         SpendResources("Mine", cc.Team);
-        cc.StartProduction("Mine");
-        cc.MineTargetCoords = (tile.X, tile.Y);
+
+        // Spawn mine directly on tile under construction (CC is freed immediately)
+        var mine = new Unit("Mine") { Team = cc.Team };
+        mine.StartConstruction();
+        mine.MovementPoints = 0;
+        mine.AttacksRemaining = 0;
+        tile.Unit = mine;
+
         ExitMineMode();
+        RefreshVisibility();
     }
 
     public void UpgradeMine()
@@ -227,6 +237,68 @@ public class GameplayManager
 
         SpendMineUpgrade(unit.Team);
         unit.MineLevel++;
+    }
+
+    public bool IsBuildEligible(Tile tile, GridMap map, Team team)
+    {
+        if (tile.Unit != null) return false;
+        if (tile.Resource != ResourceType.None) return false;
+
+        // Contested: adjacent to any enemy unit — cannot build
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var neighbor = map.GetNeighbor(tile, e);
+            if (neighbor?.Unit != null && neighbor.Unit.Team != team)
+                return false;
+        }
+
+        // Adjacent (1 tile) to any friendly unit that is not under construction
+        for (int e = 0; e < map.EdgeCount; e++)
+        {
+            var neighbor = map.GetNeighbor(tile, e);
+            if (neighbor?.Unit != null && neighbor.Unit.Team == team && !neighbor.Unit.IsUnderConstruction)
+                return true;
+        }
+
+        // Within 2 tiles of a friendly completed CommandCenter
+        var tilesInRange = Pathfinding.GetTilesInRange(map, tile, 2);
+        foreach (var t in tilesInRange)
+        {
+            if (t.Unit != null && t.Unit.Type == "CommandCenter" && t.Unit.Team == team
+                && !t.Unit.IsUnderConstruction)
+                return true;
+        }
+        return false;
+    }
+
+    public void PlaceBuilding(string type)
+    {
+        if (_selectedBuildTile == null || _map == null) return;
+        if (_selectedBuildTile.Unit != null || _selectedBuildTile.Resource != ResourceType.None) return;
+        if (!CanAfford(type, CurrentTeam)) return;
+        // CC can be built anywhere on empty tiles; other buildings need CC proximity
+        if (type != "CommandCenter" && !IsBuildEligible(_selectedBuildTile, _map, CurrentTeam)) return;
+
+        SpendResources(type, CurrentTeam);
+        var unit = new Unit(type) { Team = CurrentTeam };
+        unit.StartConstruction();
+        unit.MovementPoints = 0;
+        unit.AttacksRemaining = 0;
+        _selectedBuildTile.Unit = unit;
+        _selectedBuildTile = null;
+        RefreshVisibility();
+    }
+
+    public void CancelBuildingConstruction()
+    {
+        if (_selectedUnitTile?.Unit == null) return;
+        var unit = _selectedUnitTile.Unit;
+        if (!unit.IsUnderConstruction) return;
+
+        RefundResources(unit.Type, unit.Team);
+        _selectedUnitTile.Unit = null;
+        Deselect();
+        RefreshVisibility();
     }
 
     public void OnTileClicked(Tile tile, GridMap map)
@@ -301,7 +373,7 @@ public class GameplayManager
         }
 
         // 5. Click different selectable unit → select it (team-filtered)
-        if (tile.Unit != null && (tile.Unit.CanMove || tile.Unit.CanAttack || tile.Unit.CanProduce || tile.Unit.Type == "Mine") && CanControlUnit(tile.Unit))
+        if (tile.Unit != null && (tile.Unit.CanMove || tile.Unit.CanAttack || tile.Unit.CanProduce || tile.Unit.Type == "Mine" || tile.Unit.IsUnderConstruction) && CanControlUnit(tile.Unit))
         {
             System.Console.WriteLine($"[Click {tilePos}] Step5: SELECT unit {tile.Unit.Type} {planDesc}");
             SelectUnit(tile, map);
@@ -333,6 +405,15 @@ public class GameplayManager
             return;
         }
 
+        // 7b. Click empty tile → select as build tile (shows build menu)
+        if (tile.Unit == null && _planActions.Count == 0 && tile.Resource == ResourceType.None)
+        {
+            System.Console.WriteLine($"[Click {tilePos}] Step7b: SELECT BUILD TILE {planDesc}");
+            Deselect();
+            _selectedBuildTile = tile;
+            return;
+        }
+
         // 8. Otherwise → clear plan or deselect
         System.Console.WriteLine($"[Click {tilePos}] Step8: CLEAR/DESELECT unit={tile.Unit?.Type} planReachable={_planReachable?.Count} {planDesc}");
         if (_planActions.Count > 0)
@@ -357,6 +438,7 @@ public class GameplayManager
     private void SelectUnit(Tile tile, GridMap map)
     {
         _selectedUnitTile = tile;
+        _selectedBuildTile = null;
         _pendingAttackTarget = null;
         ExitMineMode();
         ClearPlan();
@@ -588,6 +670,7 @@ public class GameplayManager
     public void Deselect()
     {
         _selectedUnitTile = null;
+        _selectedBuildTile = null;
         _reachableTiles = null;
         _attackableTiles = null;
         _pendingAttackTarget = null;
@@ -715,6 +798,35 @@ public class GameplayManager
 
         // Mine placement
         state.MinePlacementTiles = _pendingMineMode ? _minePlacementTiles : null;
+
+        // Build tile selection
+        state.SelectedBuildTile = _selectedBuildTile;
+
+        // Buildable tiles highlight
+        if (!executing && _map != null && Mode != GameMode.Editor)
+        {
+            state.BuildableTiles = ComputeBuildableTiles(_map, CurrentTeam);
+        }
+        else
+        {
+            state.BuildableTiles = null;
+        }
+    }
+
+    private HashSet<Tile>? ComputeBuildableTiles(GridMap map, Team team)
+    {
+        HashSet<Tile>? result = null;
+        for (int y = 0; y < map.Rows; y++)
+            for (int x = 0; x < map.Cols; x++)
+            {
+                var tile = map.Tiles[y][x];
+                if (IsBuildEligible(tile, map, team))
+                {
+                    result ??= new HashSet<Tile>();
+                    result.Add(tile);
+                }
+            }
+        return result;
     }
 
     public void StartProduction(string type)
@@ -758,6 +870,17 @@ public class GameplayManager
 
     private void AdvanceProduction(GridMap map)
     {
+        // Advance under-construction buildings
+        for (int y = 0; y < map.Rows; y++)
+            for (int x = 0; x < map.Cols; x++)
+            {
+                var tile = map.Tiles[y][x];
+                var unit = tile.Unit;
+                if (unit == null || unit.Team != CurrentTeam || !unit.IsUnderConstruction) continue;
+                unit.AdvanceConstruction();
+            }
+
+        // Advance CC production queues
         for (int y = 0; y < map.Rows; y++)
             for (int x = 0; x < map.Cols; x++)
             {
@@ -772,38 +895,16 @@ public class GameplayManager
 
                 if (unit.ProductionTurnsLeft <= 0)
                 {
-                    // Mine production: spawn at target coords
-                    if (unit.ProducingType == "Mine" && unit.MineTargetCoords.HasValue)
+                    var freeTile = FindFreeAdjacentTile(map, tile);
+                    if (freeTile != null)
                     {
-                        var (mx, my) = unit.MineTargetCoords.Value;
-                        if (my >= 0 && my < map.Rows && mx >= 0 && mx < map.Cols)
-                        {
-                            var targetTile = map.Tiles[my][mx];
-                            if (targetTile.Unit == null)
-                            {
-                                var newUnit = new Unit("Mine") { Team = unit.Team };
-                                newUnit.MovementPoints = 0;
-                                newUnit.AttacksRemaining = 0;
-                                targetTile.Unit = newUnit;
-                                unit.MineTargetCoords = null;
-                                unit.CancelProduction();
-                            }
-                            // If target occupied, waits
-                        }
+                        var newUnit = new Unit(unit.ProducingType!) { Team = unit.Team };
+                        newUnit.MovementPoints = 0;
+                        newUnit.AttacksRemaining = 0;
+                        freeTile.Unit = newUnit;
+                        unit.CancelProduction();
                     }
-                    else
-                    {
-                        var freeTile = FindFreeAdjacentTile(map, tile);
-                        if (freeTile != null)
-                        {
-                            var newUnit = new Unit(unit.ProducingType!) { Team = unit.Team };
-                            newUnit.MovementPoints = 0;
-                            newUnit.AttacksRemaining = 0;
-                            freeTile.Unit = newUnit;
-                            unit.CancelProduction();
-                        }
-                        // If no free tile, stays at 0 and waits
-                    }
+                    // If no free tile, stays at 0 and waits
                 }
             }
     }

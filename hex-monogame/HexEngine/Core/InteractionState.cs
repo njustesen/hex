@@ -56,6 +56,10 @@ public class InteractionState
     public int TeamFissiumIncome { get; set; }
     public List<Tile>? MinePlacementTiles { get; set; }
 
+    // Build tile selection (for placing buildings on empty tiles)
+    public Tile? SelectedBuildTile { get; set; }
+    public HashSet<Tile>? BuildableTiles { get; set; }
+
     // Derived
     public Unit? SelectedUnit => SelectedUnitTile?.Unit;
 }

@@ -147,6 +147,17 @@ public abstract class UnitRenderer
         Color fill = ColorFromDef(colorDef.Fill, new Color(128, 128, 128));
         Color outline = ColorFromDef(colorDef.Outline, new Color(80, 80, 80));
 
+        // Dim under-construction buildings
+        if (unit.IsUnderConstruction)
+        {
+            fill = new Color((int)(fill.R * 0.5f), (int)(fill.G * 0.5f), (int)(fill.B * 0.5f), fill.A);
+            outline = new Color((int)(outline.R * 0.5f), (int)(outline.G * 0.5f), (int)(outline.B * 0.5f), outline.A);
+            if (colorDef.TurretFill != null)
+                colorDef.TurretFill = new List<int> { colorDef.TurretFill[0] / 2, colorDef.TurretFill[1] / 2, colorDef.TurretFill[2] / 2 };
+            if (colorDef.TurretOutline != null)
+                colorDef.TurretOutline = new List<int> { colorDef.TurretOutline[0] / 2, colorDef.TurretOutline[1] / 2, colorDef.TurretOutline[2] / 2 };
+        }
+
         // Shapes fill the base circle — baseWorldR is the reference radius
         float r = baseWorldR;
 

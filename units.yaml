@@ -108,6 +108,7 @@ units:
     productionTime: 1
     costIron: 3
     costFissium: 0
+    isBuilding: true
     shape: circle_turret
     size: 0.35
     colors:
@@ -136,6 +137,7 @@ units:
     productionTime: 1
     costIron: 2
     costFissium: 0
+    isBuilding: true
     shape: missile_tower
     size: 0.35
     colors:
@@ -188,9 +190,10 @@ units:
     maxAttacks: 0
     flying: false
     sight: 3
-    productionTime: 0
+    productionTime: 3
     costIron: 10
     costFissium: 0
+    isBuilding: true
     shape: command_center
     size: 0.55
 
@@ -208,5 +211,6 @@ units:
     productionTime: 1
     costIron: 5
     costFissium: 0
+    isBuilding: true
     shape: mine
     size: 0.4

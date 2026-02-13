@@ -14,6 +14,8 @@ public class InfoPanel : Panel
     public bool ProductionCancelled { get; private set; }
     public bool MineRequested { get; private set; }
     public bool UpgradeMineRequested { get; private set; }
+    public string? BuildingPlacementType { get; private set; }
+    public bool BuildingCancelled { get; private set; }
 
     private static readonly Color IronColor = new(220, 160, 80);
     private static readonly Color FissiumColor = new(80, 220, 80);
@@ -26,7 +28,7 @@ public class InfoPanel : Panel
     private static readonly Color MoveColor = new(100, 160, 220);
     private static readonly Color SightColor = new(200, 200, 220);
 
-    private const float IconSize = 16f;
+    private const float IconSize = 18f;
     private const float IconGap = 3f;
     private const float StatGap = 10f;
     private const float LineH = 16f;
@@ -57,6 +59,8 @@ public class InfoPanel : Panel
         ProductionCancelled = false;
         MineRequested = false;
         UpgradeMineRequested = false;
+        BuildingPlacementType = null;
+        BuildingCancelled = false;
         _hoveredBuildType = null;
 
         _h = screenHeight / 5f;
@@ -66,10 +70,10 @@ public class InfoPanel : Panel
 
         if (_w <= 0) return;
 
+        bool hasBuildTile = state.SelectedBuildTile != null;
         var unit = state.SelectedUnit;
-        if (unit == null) return;
 
-        // Consume clicks in panel area
+        // Always consume clicks in panel area
         if (input.MouseDown || input.MouseReleased)
         {
             float mx = input.MousePos.X;
@@ -97,12 +101,16 @@ public class InfoPanel : Panel
         float cmx = input.MousePos.X;
         float cmy = input.MousePos.Y;
 
-        // Check build buttons (includes Mine)
+        // Check build buttons (includes Mine, build tile menu items)
         for (int i = 0; i < _buildBtnRects.Count; i++)
         {
             if (InRect(cmx, cmy, _buildBtnRects[i]) && _buildBtnAffordable[i])
             {
-                if (_buildBtnTypes[i] == "Mine")
+                if (hasBuildTile)
+                {
+                    BuildingPlacementType = _buildBtnTypes[i];
+                }
+                else if (_buildBtnTypes[i] == "Mine")
                     MineRequested = true;
                 else
                     ProductionStartType = _buildBtnTypes[i];
@@ -119,10 +127,13 @@ public class InfoPanel : Panel
             return;
         }
 
-        // Check cancel button
-        if (unit.IsProducing && InRect(cmx, cmy, _cancelBtnRect))
+        // Check cancel button (production or under-construction)
+        if (unit != null && (unit.IsProducing || unit.IsUnderConstruction) && InRect(cmx, cmy, _cancelBtnRect))
         {
-            ProductionCancelled = true;
+            if (unit.IsUnderConstruction)
+                BuildingCancelled = true;
+            else
+                ProductionCancelled = true;
             ConsumesClick = true;
         }
     }
@@ -133,21 +144,30 @@ public class InfoPanel : Panel
         _previewData.Clear();
         _iconData.Clear();
 
+        bool hasBuildTile = state.SelectedBuildTile != null;
         var unit = state.SelectedUnit;
-        if (unit == null) return;
         if (_w <= 0) return;
 
         _buildBtnRects.Clear();
         _buildBtnTypes.Clear();
         _buildBtnAffordable.Clear();
         _upgradeBtnVisible = false;
-        _previewTeam = unit.Team;
+        _previewTeam = unit?.Team ?? state.CurrentTeam;
 
-        // Background
+        // Background (always visible)
         DrawBg(spriteBatch, pixel, _x, _y, _w, _h);
 
         float pad = Padding;
         float topY = _y + pad;
+
+        // === Build tile menu (no unit selected, empty tile) ===
+        if (hasBuildTile && unit == null)
+        {
+            DrawBuildTileMenu(spriteBatch, font, pixel, state, gameplay, pad, topY);
+            return;
+        }
+
+        if (unit == null) return;
 
         // --- Left section: portrait + unit stats ---
         float portraitSize = _h - pad * 2;
@@ -240,7 +260,7 @@ public class InfoPanel : Panel
         }
 
         // Mine production info
-        if (unit.Type == "Mine" && state.SelectedUnitTile != null)
+        if (unit.Type == "Mine" && !unit.IsUnderConstruction && state.SelectedUnitTile != null)
         {
             var resTile = state.SelectedUnitTile;
             if (resTile.Resource != Tiles.ResourceType.None)
@@ -258,7 +278,7 @@ public class InfoPanel : Panel
         }
 
         // Mine upgrade button
-        if (unit.Type == "Mine" && unit.MineLevel < 3 && gameplay != null)
+        if (unit.Type == "Mine" && unit.MineLevel < 3 && !unit.IsUnderConstruction && gameplay != null)
         {
             cy += 4;
             bool canUpgrade = gameplay.CanAffordMineUpgrade(unit.Team);
@@ -288,9 +308,16 @@ public class InfoPanel : Panel
         spriteBatch.Draw(pixel, new Rectangle((int)sepX, (int)(_y + pad), 1, (int)(_h - pad * 2)),
             new Color(100, 100, 100, 180));
 
-        // --- Right section: production controls ---
+        // --- Right section ---
         float rightX = sepX + pad;
         float ry = topY;
+
+        // Under-construction display
+        if (unit.IsUnderConstruction)
+        {
+            DrawConstructionProgress(spriteBatch, font, pixel, unit, rightX, ry);
+            return;
+        }
 
         if (!unit.CanProduce) return;
 
@@ -373,7 +400,7 @@ public class InfoPanel : Panel
         }
         else
         {
-            // Build grid: square tiles with unit previews
+            // Build grid: square tiles with unit previews (CC only produces mobile units + Mine)
             float sqSize = MathF.Floor(_h * 2f / 3f);
             float costTextH = font.LineSpacing;
             float sqGap = 6f;
@@ -385,6 +412,8 @@ public class InfoPanel : Panel
             {
                 if (typeName == "CommandCenter") continue;
                 var tDef = UnitDefs.Get(typeName);
+                // CC only produces mobile units + Mine; skip other buildings
+                if (tDef.IsBuilding && typeName != "Mine") continue;
 
                 if (sqX + sqSize > maxSqX && sqX > rightX)
                 {
@@ -431,6 +460,138 @@ public class InfoPanel : Panel
 
                 sqX += sqSize + sqGap;
             }
+        }
+    }
+
+    private void DrawBuildTileMenu(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel,
+                                    InteractionState state, GameplayManager? gameplay, float pad, float topY)
+    {
+        float rightX = _x + pad;
+
+        float sqSize = MathF.Floor(_h * 2f / 3f);
+        float costTextH = font.LineSpacing;
+        float sqGap = 6f;
+        float sqX = rightX;
+        float sqY = topY;
+        float maxSqX = _x + _w - pad;
+
+        bool tileEligible = gameplay != null && state.SelectedBuildTile != null
+            && gameplay.IsBuildEligible(state.SelectedBuildTile, _map!, state.CurrentTeam);
+
+        // Show buildable buildings: CC, Bunker, AntiAir (not Mine — Mine is built via CC)
+        foreach (var typeName in UnitDefs.TypeNames)
+        {
+            var tDef = UnitDefs.Get(typeName);
+            if (!tDef.IsBuilding || typeName == "Mine") continue;
+
+            if (sqX + sqSize > maxSqX && sqX > rightX)
+            {
+                sqX = rightX;
+                sqY += sqSize + costTextH + sqGap;
+            }
+
+            // CC can be built anywhere; other buildings need CC proximity
+            bool eligible = typeName == "CommandCenter" || tileEligible;
+            bool affordable = eligible && gameplay != null && gameplay.CanAfford(typeName, state.CurrentTeam);
+
+            var rect = new Rectangle((int)sqX, (int)sqY, (int)sqSize, (int)sqSize);
+            _buildBtnRects.Add(rect);
+            _buildBtnTypes.Add(typeName);
+            _buildBtnAffordable.Add(affordable);
+
+            bool hovered = _hoveredBuildType == typeName;
+            Color sqBg = affordable
+                ? (hovered ? new Color(55, 70, 55, 220) : new Color(40, 50, 40, 200))
+                : (hovered ? new Color(45, 45, 45, 220) : new Color(30, 30, 30, 200));
+            spriteBatch.Draw(pixel, rect, sqBg);
+
+            Color borderColor = hovered ? new Color(140, 140, 160, 220) : new Color(80, 80, 100, 180);
+            DrawHLine(spriteBatch, pixel, sqX, sqY, sqSize, borderColor);
+            DrawHLine(spriteBatch, pixel, sqX, sqY + sqSize, sqSize, borderColor);
+            DrawVLine(spriteBatch, pixel, sqX, sqY, sqSize, borderColor);
+            DrawVLine(spriteBatch, pixel, sqX + sqSize, sqY, sqSize, borderColor);
+
+            _previewData.Add((typeName, sqX + sqSize / 2f, sqY + sqSize / 2f, sqSize, affordable));
+
+            float costTotalW = MeasureIconCostWidth(font, tDef);
+            float costX = sqX + (sqSize - costTotalW) / 2f;
+            float costY = sqY + sqSize + 2;
+            DrawIconCost(spriteBatch, font, costX, costY, tDef, affordable, _iconData);
+
+            sqX += sqSize + sqGap;
+        }
+    }
+
+    private void DrawConstructionProgress(SpriteBatch spriteBatch, SpriteFont font, Texture2D pixel,
+                                           Unit unit, float rightX, float ry)
+    {
+        int totalTurns = unit.ConstructionTotalTurns;
+        int elapsed = totalTurns - unit.ConstructionTurnsLeft;
+
+        float sqSize = MathF.Floor(_h * 2f / 3f);
+
+        // Preview square
+        spriteBatch.Draw(pixel, new Rectangle((int)rightX, (int)ry, (int)sqSize, (int)sqSize),
+            new Color(40, 50, 40, 200));
+        DrawHLine(spriteBatch, pixel, rightX, ry, sqSize);
+        DrawHLine(spriteBatch, pixel, rightX, ry + sqSize, sqSize);
+        DrawVLine(spriteBatch, pixel, rightX, ry, sqSize);
+        DrawVLine(spriteBatch, pixel, rightX + sqSize, ry, sqSize);
+        _previewData.Add((unit.Type, rightX + sqSize / 2f, ry + sqSize / 2f, sqSize, true));
+
+        // Cancel button centered below preview
+        float cancelW = font.MeasureString("Cancel").X + 12;
+        float cancelX = rightX + (sqSize - cancelW) / 2f;
+        float cancelY = ry + sqSize + 4;
+        _cancelBtnRect = new Rectangle((int)cancelX, (int)cancelY, (int)cancelW, (int)BtnHeight);
+        DrawBtn(spriteBatch, pixel, font, _cancelBtnRect, "Cancel", new Color(160, 40, 40, 200));
+
+        // Info column
+        float pad = Padding;
+        float infoX = rightX + sqSize + pad;
+        float infoY = ry;
+
+        DrawText(spriteBatch, font, infoX, infoY, UnitDefs.DisplayName(unit.Type), Color.Yellow);
+        infoY += LineH + 2;
+
+        float infoSepW = sqSize;
+        spriteBatch.Draw(pixel, new Rectangle((int)infoX, (int)infoY, (int)infoSepW, 1),
+            new Color(100, 100, 100, 180));
+        infoY += 6;
+
+        DrawText(spriteBatch, font, infoX, infoY, "Under Construction", Color.LightGray);
+        infoY += LineH + 4;
+
+        // Progress bar
+        float barW = sqSize;
+        float barH = 10f;
+        float segGap = 2f;
+        float segW = totalTurns > 1 ? (barW - (totalTurns - 1) * segGap) / totalTurns : barW;
+
+        for (int t = 0; t < totalTurns; t++)
+        {
+            float segX = infoX + t * (segW + segGap);
+            Color segBg = new Color(30, 30, 30, 200);
+            spriteBatch.Draw(pixel, new Rectangle((int)segX, (int)infoY, (int)segW, (int)barH), segBg);
+
+            Color segFill;
+            if (t < elapsed)
+            {
+                segFill = new Color(200, 180, 40, 220);
+                spriteBatch.Draw(pixel, new Rectangle((int)segX, (int)infoY, (int)segW, (int)barH), segFill);
+            }
+            else if (t == elapsed)
+            {
+                segFill = new Color(200, 180, 40, 140);
+                int sliverW = Math.Max(3, (int)(segW * 0.2f));
+                spriteBatch.Draw(pixel, new Rectangle((int)segX, (int)infoY, sliverW, (int)barH), segFill);
+            }
+
+            Color border = new Color(80, 80, 80, 180);
+            spriteBatch.Draw(pixel, new Rectangle((int)segX, (int)infoY, (int)segW, 1), border);
+            spriteBatch.Draw(pixel, new Rectangle((int)segX, (int)(infoY + barH - 1), (int)segW, 1), border);
+            spriteBatch.Draw(pixel, new Rectangle((int)segX, (int)infoY, 1, (int)barH), border);
+            spriteBatch.Draw(pixel, new Rectangle((int)(segX + segW - 1), (int)infoY, 1, (int)barH), border);
         }
     }
 

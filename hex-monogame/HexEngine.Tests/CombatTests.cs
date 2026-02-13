@@ -649,7 +649,7 @@ public class CombatTests
         Assert.Equal(1, UnitDefs.Get("Bunker").ProductionTime);
         Assert.Equal(1, UnitDefs.Get("AntiAirTurret").ProductionTime);
         Assert.Equal(1, UnitDefs.Get("Battlecruiser").ProductionTime);
-        Assert.Equal(0, UnitDefs.Get("CommandCenter").ProductionTime);
+        Assert.Equal(3, UnitDefs.Get("CommandCenter").ProductionTime);
     }
 
     [Fact]
@@ -969,7 +969,7 @@ public class CombatTests
     }
 
     [Fact]
-    public void MineSpawns_AtTargetCoords_AfterProduction()
+    public void MineSpawns_ImmediatelyUnderConstruction()
     {
         var map = CreateFlatMap();
         var ccTile = map.Tiles[5][5];
@@ -989,17 +989,20 @@ public class CombatTests
         gm.EnterMineMode();
         gm.OnTileClicked(resourceTile, map);
 
-        Assert.True(ccTile.Unit!.IsProducing);
-        Assert.Equal("Mine", ccTile.Unit.ProducingType);
-
-        // Advance: Red → Blue → Red (mine takes 1 turn)
-        gm.EndTurn(map); // → Blue
-        gm.EndTurn(map); // → Red, mine spawns
-
+        // Mine spawns immediately on tile under construction (CC freed)
+        Assert.False(ccTile.Unit!.IsProducing);
         Assert.NotNull(resourceTile.Unit);
         Assert.Equal("Mine", resourceTile.Unit!.Type);
+        Assert.True(resourceTile.Unit.IsUnderConstruction);
+        Assert.Equal(1, resourceTile.Unit.Health); // starts at 1 HP
+
+        // Advance: Red → Blue → Red (mine construction completes after 1 turn)
+        gm.EndTurn(map); // → Blue
+        gm.EndTurn(map); // → Red, construction advances
+
+        Assert.False(resourceTile.Unit.IsUnderConstruction);
+        Assert.Equal(resourceTile.Unit.MaxHealth, resourceTile.Unit.Health);
         Assert.Equal(Team.Red, resourceTile.Unit.Team);
-        Assert.False(ccTile.Unit.IsProducing);
     }
 
     [Fact]
@@ -1125,5 +1128,265 @@ public class CombatTests
         Assert.True(gm.CanAfford("LandSpeeder", Team.Red)); // needs 2I+1F
         Assert.True(gm.CanAfford("Tank", Team.Red));        // needs 3I+2F
         Assert.False(gm.CanAfford("Battlecruiser", Team.Red)); // needs 5I+5F
+    }
+
+    // --- Construction system tests ---
+
+    [Fact]
+    public void IsBuilding_LoadedFromDefs()
+    {
+        Assert.True(UnitDefs.Get("CommandCenter").IsBuilding);
+        Assert.True(UnitDefs.Get("Mine").IsBuilding);
+        Assert.True(UnitDefs.Get("Bunker").IsBuilding);
+        Assert.True(UnitDefs.Get("AntiAirTurret").IsBuilding);
+        Assert.False(UnitDefs.Get("Marine").IsBuilding);
+        Assert.False(UnitDefs.Get("Tank").IsBuilding);
+        Assert.False(UnitDefs.Get("Fighter").IsBuilding);
+    }
+
+    [Fact]
+    public void StartConstruction_SetsState()
+    {
+        var unit = new Unit("Bunker");
+        unit.StartConstruction();
+
+        Assert.True(unit.IsUnderConstruction);
+        Assert.Equal(1, unit.ConstructionTotalTurns);
+        Assert.Equal(1, unit.ConstructionTurnsLeft);
+        Assert.Equal(1, unit.Health); // starts at 1 HP
+    }
+
+    [Fact]
+    public void AdvanceConstruction_CompletesAndRestoresHealth()
+    {
+        var unit = new Unit("Bunker"); // HP:5, ProductionTime:1
+        unit.StartConstruction();
+
+        Assert.True(unit.IsUnderConstruction);
+        unit.AdvanceConstruction();
+
+        Assert.False(unit.IsUnderConstruction);
+        Assert.Equal(unit.MaxHealth, unit.Health);
+    }
+
+    [Fact]
+    public void Construction_MultiTurn_ProportionalHealth()
+    {
+        var unit = new Unit("CommandCenter"); // HP:15, ProductionTime:3
+        unit.StartConstruction();
+
+        Assert.Equal(3, unit.ConstructionTotalTurns);
+        Assert.Equal(1, unit.Health);
+
+        unit.AdvanceConstruction(); // 1 of 3 done
+        Assert.True(unit.IsUnderConstruction);
+        Assert.Equal(5, unit.Health); // ceil(1/3 * 15) = 5
+
+        unit.AdvanceConstruction(); // 2 of 3 done
+        Assert.True(unit.IsUnderConstruction);
+        Assert.Equal(10, unit.Health); // ceil(2/3 * 15) = 10
+
+        unit.AdvanceConstruction(); // 3 of 3 done
+        Assert.False(unit.IsUnderConstruction);
+        Assert.Equal(15, unit.Health); // full
+    }
+
+    [Fact]
+    public void UnderConstruction_CannotAttack()
+    {
+        var unit = new Unit("Bunker");
+        Assert.True(unit.CanAttack);
+        unit.StartConstruction();
+        Assert.False(unit.CanAttack);
+    }
+
+    [Fact]
+    public void UnderConstruction_CannotProduce()
+    {
+        var unit = new Unit("CommandCenter");
+        Assert.True(unit.CanProduce);
+        unit.StartConstruction();
+        Assert.False(unit.CanProduce);
+    }
+
+    [Fact]
+    public void BuildEligible_Within2OfCC()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Adjacent tile (range 1) — eligible
+        var adjacentTile = map.GetNeighbor(ccTile, 0)!;
+        Assert.True(gm.IsBuildEligible(adjacentTile, map, Team.Red));
+
+        // Range 2 tile — eligible
+        var range2Tile = map.GetNeighbor(adjacentTile, 0)!;
+        Assert.True(gm.IsBuildEligible(range2Tile, map, Team.Red));
+
+        // Far tile — not eligible
+        var farTile = map.Tiles[0][0];
+        Assert.False(gm.IsBuildEligible(farTile, map, Team.Red));
+    }
+
+    [Fact]
+    public void BuildEligible_AdjacentToFriendlyUnit()
+    {
+        var map = CreateFlatMap();
+        var unitTile = map.Tiles[5][5];
+        unitTile.Unit = new Unit("Marine") { Team = Team.Red };
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Adjacent to marine — eligible
+        var adjacentTile = map.GetNeighbor(unitTile, 0)!;
+        Assert.True(gm.IsBuildEligible(adjacentTile, map, Team.Red));
+
+        // 2 tiles from marine (no CC) — not eligible
+        var range2Tile = map.GetNeighbor(adjacentTile, 0)!;
+        Assert.False(gm.IsBuildEligible(range2Tile, map, Team.Red));
+    }
+
+    [Fact]
+    public void BuildEligible_NotAdjacentToUnderConstructionUnit()
+    {
+        var map = CreateFlatMap();
+        var unitTile = map.Tiles[5][5];
+        var bunker = new Unit("Bunker") { Team = Team.Red };
+        bunker.StartConstruction();
+        unitTile.Unit = bunker;
+
+        var gm = new GameplayManager();
+
+        var adjacentTile = map.GetNeighbor(unitTile, 0)!;
+        Assert.False(gm.IsBuildEligible(adjacentTile, map, Team.Red));
+    }
+
+    [Fact]
+    public void BuildEligible_ContestedByAdjacentEnemy()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+
+        var buildTile = map.GetNeighbor(ccTile, 0)!;
+        var enemyTile = map.GetNeighbor(buildTile, 1)!;
+        enemyTile.Unit = new Unit("Marine") { Team = Team.Blue };
+
+        var gm = new GameplayManager();
+
+        // Adjacent to CC but also adjacent to enemy — contested, cannot build
+        Assert.False(gm.IsBuildEligible(buildTile, map, Team.Red));
+    }
+
+    [Fact]
+    public void BuildEligible_BlockedByResource()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+
+        var resourceTile = map.GetNeighbor(ccTile, 0)!;
+        resourceTile.Resource = Tiles.ResourceType.Iron;
+
+        var gm = new GameplayManager();
+        Assert.False(gm.IsBuildEligible(resourceTile, map, Team.Red));
+    }
+
+    [Fact]
+    public void BuildEligible_BlockedByUnit()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        ccTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+
+        var occupiedTile = map.GetNeighbor(ccTile, 0)!;
+        occupiedTile.Unit = new Unit("Marine") { Team = Team.Red };
+
+        var gm = new GameplayManager();
+        Assert.False(gm.IsBuildEligible(occupiedTile, map, Team.Red));
+    }
+
+    [Fact]
+    public void BuildEligible_UnderConstructionCC_NotCounted()
+    {
+        var map = CreateFlatMap();
+        var ccTile = map.Tiles[5][5];
+        var cc = new Unit("CommandCenter") { Team = Team.Red };
+        cc.StartConstruction();
+        ccTile.Unit = cc;
+
+        var gm = new GameplayManager();
+
+        var adjacentTile = map.GetNeighbor(ccTile, 0)!;
+        Assert.False(gm.IsBuildEligible(adjacentTile, map, Team.Red));
+    }
+
+    [Fact]
+    public void CancelBuildingConstruction_RefundsResources()
+    {
+        var map = CreateFlatMap();
+        var friendlyTile = map.Tiles[5][5];
+        friendlyTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+
+        var buildTile = map.GetNeighbor(friendlyTile, 0)!;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Earn resources for Bunker (3I)
+        var startRes = gm.GetResources(Team.Red); // 3I, 3F
+
+        // Click the build tile to select it
+        gm.OnTileClicked(buildTile, map);
+        var state = new InteractionState();
+        gm.Update(state);
+        Assert.NotNull(state.SelectedBuildTile);
+
+        // Place a bunker
+        gm.PlaceBuilding("Bunker");
+        Assert.NotNull(buildTile.Unit);
+        Assert.True(buildTile.Unit!.IsUnderConstruction);
+
+        var resAfterBuild = gm.GetResources(Team.Red);
+        Assert.Equal(startRes.Iron - 3, resAfterBuild.Iron);
+
+        // Select the under-construction building and cancel
+        gm.OnTileClicked(buildTile, map);
+        gm.CancelBuildingConstruction();
+
+        Assert.Null(buildTile.Unit);
+        var resAfterCancel = gm.GetResources(Team.Red);
+        Assert.Equal(startRes.Iron, resAfterCancel.Iron);
+    }
+
+    [Fact]
+    public void Construction_CompletesViaEndTurn()
+    {
+        var map = CreateFlatMap();
+        var friendlyTile = map.Tiles[5][5];
+        friendlyTile.Unit = new Unit("CommandCenter") { Team = Team.Red };
+
+        var buildTile = map.GetNeighbor(friendlyTile, 0)!;
+
+        var gm = new GameplayManager();
+        gm.StartGame(map, GameMode.HotSeat);
+
+        // Select build tile and place bunker (1 turn construction)
+        gm.OnTileClicked(buildTile, map);
+        gm.PlaceBuilding("Bunker");
+
+        Assert.True(buildTile.Unit!.IsUnderConstruction);
+
+        // End turns: Red→Blue→Red (advances Red construction)
+        gm.EndTurn(map); // → Blue
+        gm.EndTurn(map); // → Red, construction completes
+
+        Assert.False(buildTile.Unit.IsUnderConstruction);
+        Assert.Equal(buildTile.Unit.MaxHealth, buildTile.Unit.Health);
     }
 }

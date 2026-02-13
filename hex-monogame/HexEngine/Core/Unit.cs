@@ -23,13 +23,13 @@ public class Unit
     public bool CanTargetGround { get; }
     public int MaxAttacks { get; }
     public int AttacksRemaining { get; set; }
-    public bool CanAttack => AttacksRemaining > 0 && Health > 0;
+    public bool CanAttack => AttacksRemaining > 0 && Health > 0 && !IsUnderConstruction;
     public bool IsAlive => Health > 0;
     public bool IsFlying { get; }
     public int Sight { get; }
 
     // Production
-    public bool CanProduce => Type == "CommandCenter";
+    public bool CanProduce => Type == "CommandCenter" && !IsUnderConstruction;
     public string? ProducingType { get; set; }
     public int ProductionTurnsLeft { get; set; }
     public bool IsProducing => ProducingType != null;
@@ -37,6 +37,33 @@ public class Unit
 
     // Mine levels (1 = base, 2 = level II, 3 = level III)
     public int MineLevel { get; set; } = 1;
+
+    // Construction state (for buildings placed on the map)
+    public bool IsUnderConstruction { get; set; }
+    public int ConstructionTurnsLeft { get; set; }
+    public int ConstructionTotalTurns { get; set; }
+
+    public void StartConstruction()
+    {
+        var def = UnitDefs.Get(Type);
+        IsUnderConstruction = true;
+        ConstructionTotalTurns = def.ProductionTime;
+        ConstructionTurnsLeft = def.ProductionTime;
+        Health = Math.Max(1, 0);
+    }
+
+    public void AdvanceConstruction()
+    {
+        if (!IsUnderConstruction) return;
+        ConstructionTurnsLeft--;
+        int elapsed = ConstructionTotalTurns - ConstructionTurnsLeft;
+        Health = (int)Math.Ceiling((float)elapsed / ConstructionTotalTurns * MaxHealth);
+        if (ConstructionTurnsLeft <= 0)
+        {
+            IsUnderConstruction = false;
+            Health = MaxHealth;
+        }
+    }
 
     public void StartProduction(string type)
     {

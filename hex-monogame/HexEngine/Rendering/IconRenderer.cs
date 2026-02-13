@@ -49,15 +49,23 @@ public static class IconRenderer
 
     private static void DrawExplosion(PrimitiveDrawer d, float cx, float cy, float s, Color c)
     {
-        int points = 8;
-        var verts = new Vector2[points * 2];
-        for (int i = 0; i < points * 2; i++)
+        // Sword blade pointing up-right
+        float bw = s * 0.15f; // blade half-width
+        float bl = s * 0.7f;  // blade length
+        d.DrawFilledPolygon(new[]
         {
-            float angle = i * MathF.PI / points - MathF.PI / 2f;
-            float r = (i % 2 == 0) ? s * 0.7f : s * 0.3f;
-            verts[i] = new Vector2(cx + MathF.Cos(angle) * r, cy + MathF.Sin(angle) * r);
-        }
-        d.DrawFilledPolygon(verts, c);
+            new Vector2(cx - bw, cy + bl * 0.3f),   // bottom-left of blade
+            new Vector2(cx + bl * 0.5f, cy - bl),    // tip
+            new Vector2(cx + bw, cy + bl * 0.3f),    // bottom-right of blade
+        }, c);
+        // Cross-guard
+        float gw = s * 0.5f;
+        float gh = s * 0.12f;
+        d.DrawFilledRect(cx - gw, cy + bl * 0.2f, gw * 2, gh, c);
+        // Handle
+        float hw = s * 0.1f;
+        float hh = s * 0.35f;
+        d.DrawFilledRect(cx - hw, cy + bl * 0.3f + gh * 0.5f, hw * 2, hh, c);
     }
 
     private static void DrawRange(PrimitiveDrawer d, float cx, float cy, float s, Color c)

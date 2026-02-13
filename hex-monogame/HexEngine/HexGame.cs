@@ -241,7 +241,11 @@ public class HexGame : Game
 
         if (_inputManager.EscapePressed)
         {
-            if (_gameplay.IsMineMode)
+            if (_interaction.SelectedBuildTile != null)
+            {
+                _gameplay.Deselect();
+            }
+            else if (_gameplay.IsMineMode)
             {
                 _gameplay.ExitMineMode();
             }
@@ -276,6 +280,10 @@ public class HexGame : Game
             _gameplay.EnterMineMode();
         if (_infoPanel.UpgradeMineRequested)
             _gameplay.UpgradeMine();
+        if (_infoPanel.BuildingPlacementType != null)
+            _gameplay.PlaceBuilding(_infoPanel.BuildingPlacementType);
+        if (_infoPanel.BuildingCancelled)
+            _gameplay.CancelBuildingConstruction();
 
         bool uiConsumed = _toolbar.ConsumesClick || _debugMenu.ConsumesClick || _infoPanel.ConsumesClick;
 

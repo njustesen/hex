@@ -34,6 +34,7 @@ public class UnitDef
     public float Size { get; set; } = 0.5f;
     public int CostIron { get; set; }
     public int CostFissium { get; set; }
+    public bool IsBuilding { get; set; }
     public Dictionary<string, UnitColorDef> Colors { get; set; } = new();
 }
 
