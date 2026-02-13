@@ -335,16 +335,8 @@ public class GameplayManager
             return;
         }
 
-        // 3. Click last action target → execute plan
-        var lastTarget = _planActions.Count > 0 ? _planActions[^1].Target : null;
-        if (lastTarget != null && tile == lastTarget && tile != _selectedUnitTile)
-        {
-            System.Console.WriteLine($"[Click {tilePos}] Step3: EXECUTE (last target) {planDesc}");
-            ExecutePlan(map);
-            return;
-        }
-
-        // 4. Click attackable tile (from plan endpoint or current position)
+        // 3. Click attackable tile (from plan endpoint or current position)
+        //    Checked BEFORE "execute last target" so multi-attack on same target works
         bool isPlanAttackable = _planAttackable != null && _planAttackable.Contains(tile);
         bool isDirectAttackable = _planActions.Count == 0 && _attackableTiles != null && _attackableTiles.Contains(tile);
         if ((isPlanAttackable || isDirectAttackable) && _selectedUnitTile?.Unit != null)
@@ -352,23 +344,32 @@ public class GameplayManager
             if (isPlanAttackable)
             {
                 // During plan: single click adds attack immediately
-                System.Console.WriteLine($"[Click {tilePos}] Step4: ADD ATTACK to plan (immediate) {planDesc}");
+                System.Console.WriteLine($"[Click {tilePos}] Step3: ADD ATTACK to plan (immediate) {planDesc}");
                 _pendingAttackTarget = null;
                 AddAttackToPlan(tile, map);
             }
             else if (tile == _pendingAttackTarget)
             {
-                System.Console.WriteLine($"[Click {tilePos}] Step4: EXECUTE ATTACK (confirmed) {planDesc}");
+                System.Console.WriteLine($"[Click {tilePos}] Step3: EXECUTE ATTACK (confirmed) {planDesc}");
                 // Second click on direct attack → add and execute immediately
                 AddAttackToPlan(tile, map);
                 ExecutePlan(map);
             }
             else
             {
-                System.Console.WriteLine($"[Click {tilePos}] Step4: PREVIEW attack {planDesc}");
+                System.Console.WriteLine($"[Click {tilePos}] Step3: PREVIEW attack {planDesc}");
                 // First click on direct attack → preview
                 _pendingAttackTarget = tile;
             }
+            return;
+        }
+
+        // 4. Click last action target → execute plan
+        var lastTarget = _planActions.Count > 0 ? _planActions[^1].Target : null;
+        if (lastTarget != null && tile == lastTarget && tile != _selectedUnitTile)
+        {
+            System.Console.WriteLine($"[Click {tilePos}] Step4: EXECUTE (last target) {planDesc}");
+            ExecutePlan(map);
             return;
         }
 
@@ -754,6 +755,44 @@ public class GameplayManager
             state.PlanPaths = movePaths.Count > 0 ? movePaths : null;
             state.PlannedPath = combinedPath.Count > 0 ? combinedPath : null;
             state.PlanAttackPairs = attackPairs.Count > 0 ? attackPairs : null;
+
+            // Compute damage preview per target
+            if (attackPairs.Count > 0 && _selectedUnitTile?.Unit != null)
+            {
+                var preview = new Dictionary<Tile, (int CurrentHealth, int ProjectedHealth, int MaxHealth, int AttackCount)>();
+                var unit = _selectedUnitTile.Unit;
+
+                // Find distinct targets
+                var targets = new HashSet<Tile>();
+                foreach (var (_, target) in attackPairs)
+                    targets.Add(target);
+
+                foreach (var target in targets)
+                {
+                    if (target.Unit == null) continue;
+                    var targetUnit = target.Unit;
+                    int simHealth = targetUnit.Health;
+                    int simArmor = targetUnit.Armor;
+                    int atkCount = 0;
+
+                    foreach (var (source, t) in attackPairs)
+                    {
+                        if (t != target) continue;
+                        atkCount++;
+                        bool elevBonus = target.Elevation > source.Elevation && !unit.IsFlying;
+                        if (elevBonus) simArmor++;
+                        int effective = System.Math.Max(unit.Damage - simArmor, 0);
+                        simHealth = System.Math.Max(simHealth - effective, 0);
+                    }
+
+                    preview[target] = (targetUnit.Health, simHealth, targetUnit.MaxHealth, atkCount);
+                }
+                state.PlanDamagePreview = preview.Count > 0 ? preview : null;
+            }
+            else
+            {
+                state.PlanDamagePreview = null;
+            }
         }
         else
         {
@@ -761,13 +800,30 @@ public class GameplayManager
             state.PlanPaths = null;
             state.PlannedPath = null;
             state.PlanAttackPairs = null;
+            state.PlanDamagePreview = null;
         }
 
         state.PlanReachableTiles = executing ? null : (_planReachable != null ? new HashSet<Tile>(_planReachable.Keys) : null);
         state.PlanAttackableTiles = executing ? null : _planAttackable;
 
-        // Pending attack
+        // Pending attack + damage preview
         state.PendingAttackTarget = executing ? null : _pendingAttackTarget;
+        if (!executing && _pendingAttackTarget?.Unit != null && _selectedUnitTile?.Unit != null)
+        {
+            var atkUnit = _selectedUnitTile.Unit;
+            var defUnit = _pendingAttackTarget.Unit;
+            Tile sourceTile = PlanCurrentTile ?? _selectedUnitTile;
+            int simArmor = defUnit.Armor;
+            bool elevBonus = _pendingAttackTarget.Elevation > sourceTile.Elevation && !atkUnit.IsFlying;
+            if (elevBonus) simArmor++;
+            int effective = System.Math.Max(atkUnit.Damage - simArmor, 0);
+            int projHp = System.Math.Max(defUnit.Health - effective, 0);
+            state.PendingAttackDamagePreview = (defUnit.Health, projHp, defUnit.MaxHealth);
+        }
+        else
+        {
+            state.PendingAttackDamagePreview = null;
+        }
 
         // Executing unit overlay (when passing through occupied tiles)
         state.ExecUnitTile = executing ? _execCurrentTile : null;

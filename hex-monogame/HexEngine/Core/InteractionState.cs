@@ -27,8 +27,12 @@ public class InteractionState
     // Planned attacks (confirmed in plan, shown as crosshairs)
     public List<(Tile Source, Tile Target)>? PlanAttackPairs { get; set; }
 
+    // Damage preview per target tile during plan
+    public Dictionary<Tile, (int CurrentHealth, int ProjectedHealth, int MaxHealth, int AttackCount)>? PlanDamagePreview { get; set; }
+
     // Pending attack (shown before confirmation)
     public Tile? PendingAttackTarget { get; set; }
+    public (int CurrentHealth, int ProjectedHealth, int MaxHealth)? PendingAttackDamagePreview { get; set; }
 
     // Executing unit overlay (drawn when unit passes through occupied tiles)
     public Tile? ExecUnitTile { get; set; }

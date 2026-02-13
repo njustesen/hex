@@ -54,7 +54,8 @@ public class MapRenderer
                 float fogFactor = UnitRenderer.ComputeFogFactor(vp, tile, fogStrength);
                 bool isEnemy = state.VisibleTiles != null && tile.Unit.Team != state.CurrentTeam;
                 var def = UnitDefs.Get(tile.Unit.Type);
-                UnitRenderer.GetRenderer(def.Shape).DrawStatBars(drawer, vp, tile, screenPoints, fogFactor, isEnemy);
+                int? projHp = GetProjectedHealth(state, tile);
+                UnitRenderer.GetRenderer(def.Shape).DrawStatBars(drawer, vp, tile, screenPoints, fogFactor, isEnemy, projectedHealth: projHp);
             }
         }
 
@@ -68,7 +69,8 @@ public class MapRenderer
                 float fogFactor = UnitRenderer.ComputeFogFactor(vp, tile, fogStrength);
                 bool isEnemy = state.VisibleTiles != null && tile.Unit.Team != state.CurrentTeam;
                 var def = UnitDefs.Get(tile.Unit.Type);
-                UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor, isEnemy, state.IsEditor);
+                int? projHp = GetProjectedHealth(state, tile);
+                UnitRenderer.GetRenderer(def.Shape).Draw(drawer, vp, tile, screenPoints, fogFactor, isEnemy, state.IsEditor, projectedHealth: projHp);
             }
         }
 
@@ -141,16 +143,47 @@ public class MapRenderer
         if (state.PlanAttackPairs != null)
         {
             var attackColor = new Color(255, 80, 60);
+
+            // Deduplicate: draw one crosshair per target with attack count
+            var drawnTargets = new HashSet<Tile>();
+
             foreach (var (source, target) in state.PlanAttackPairs)
             {
                 var sourceCenter = GetTileScreenCenter(vp, source);
                 var targetCenter = GetTileScreenCenter(vp, target);
                 drawer.DrawLine(sourceCenter, targetCenter, attackColor);
 
+                if (drawnTargets.Contains(target)) continue;
+                drawnTargets.Add(target);
+
+                int atkCount = 1;
+                if (state.PlanDamagePreview != null && state.PlanDamagePreview.TryGetValue(target, out var dmgInfo))
+                    atkCount = dmgInfo.AttackCount;
+
                 float r = 8f;
                 drawer.DrawCircle(targetCenter, r, attackColor);
                 drawer.DrawLine(targetCenter - new Vector2(r, 0), targetCenter + new Vector2(r, 0), attackColor);
                 drawer.DrawLine(targetCenter - new Vector2(0, r), targetCenter + new Vector2(0, r), attackColor);
+
+                // Multiple attacks: draw concentric rings
+                for (int i = 1; i < atkCount; i++)
+                    drawer.DrawCircle(targetCenter, r + i * 4f, attackColor);
+            }
+        }
+
+        // Draw kill indicator for units that will die
+        if (state.PlanDamagePreview != null)
+        {
+            foreach (var (target, (_, projHp, _, _)) in state.PlanDamagePreview)
+            {
+                if (projHp <= 0)
+                {
+                    var center = GetTileScreenCenter(vp, target);
+                    float xr = 10f;
+                    var killColor = new Color(255, 40, 40);
+                    drawer.DrawLine(center - new Vector2(xr, xr), center + new Vector2(xr, xr), killColor);
+                    drawer.DrawLine(center - new Vector2(-xr, xr), center + new Vector2(-xr, xr), killColor);
+                }
             }
         }
     }
@@ -177,6 +210,15 @@ public class MapRenderer
         drawer.DrawCircle(targetCenter, r, attackColor);
         drawer.DrawLine(targetCenter - new Vector2(r, 0), targetCenter + new Vector2(r, 0), attackColor);
         drawer.DrawLine(targetCenter - new Vector2(0, r), targetCenter + new Vector2(0, r), attackColor);
+
+        // Kill indicator for pending attack
+        if (state.PendingAttackDamagePreview != null && state.PendingAttackDamagePreview.Value.ProjectedHealth <= 0)
+        {
+            float xr = 10f;
+            var killColor = new Color(255, 40, 40);
+            drawer.DrawLine(targetCenter - new Vector2(xr, xr), targetCenter + new Vector2(xr, xr), killColor);
+            drawer.DrawLine(targetCenter - new Vector2(-xr, xr), targetCenter + new Vector2(-xr, xr), killColor);
+        }
     }
 
     private void DrawAttackAnimation(PrimitiveDrawer drawer, Viewport vp, InteractionState state)
@@ -239,6 +281,16 @@ public class MapRenderer
                     }
                 }
             }
+    }
+
+    /// Look up projected health for a tile from plan damage preview or pending attack preview.
+    private static int? GetProjectedHealth(InteractionState state, Tile tile)
+    {
+        if (state.PlanDamagePreview != null && state.PlanDamagePreview.TryGetValue(tile, out var dmg))
+            return dmg.ProjectedHealth;
+        if (state.PendingAttackTarget == tile && state.PendingAttackDamagePreview != null)
+            return state.PendingAttackDamagePreview.Value.ProjectedHealth;
+        return null;
     }
 
     private static Vector2 GetTileScreenCenter(Viewport vp, Tile tile)

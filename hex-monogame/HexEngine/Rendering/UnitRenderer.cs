@@ -35,7 +35,7 @@ public abstract class UnitRenderer
 
     public void Draw(PrimitiveDrawer drawer, Viewport vp, Tile tile,
                      Vector2[] screenPoints, float fogFactor, bool isEnemy = false, bool isEditor = false,
-                     Unit? unitOverride = null, bool deferStatBars = false)
+                     Unit? unitOverride = null, bool deferStatBars = false, int? projectedHealth = null)
     {
         var unit = unitOverride ?? tile.Unit!;
         var def = UnitDefs.Get(unit.Type);
@@ -165,14 +165,14 @@ public abstract class UnitRenderer
 
         // Stat bars below unit (only if not deferred)
         if (!deferStatBars)
-            DrawStatBarsInternal(drawer, drawCenter, baseScreenR, unit, fogFactor, isEnemy);
+            DrawStatBarsInternal(drawer, drawCenter, baseScreenR, unit, fogFactor, isEnemy, projectedHealth);
     }
 
     /// Draw only the stat bars for a unit (health, ammo, movement).
     /// Called in a separate pass so bars render on top of all tiles.
     public void DrawStatBars(PrimitiveDrawer drawer, Viewport vp, Tile tile,
                              Vector2[] screenPoints, float fogFactor, bool isEnemy = false,
-                             Unit? unitOverride = null)
+                             Unit? unitOverride = null, int? projectedHealth = null)
     {
         var unit = unitOverride ?? tile.Unit!;
         if (vp.IsMinimap) return;
@@ -219,11 +219,12 @@ public abstract class UnitRenderer
         Vector2 drawCenter = new Vector2(screenCenter.X, screenCenter.Y - liftY * scaleY);
         float baseScreenR = Math.Max(3f, def.Size * halfExtentX * scaleX);
 
-        DrawStatBarsInternal(drawer, drawCenter, baseScreenR, unit, fogFactor, isEnemy);
+        DrawStatBarsInternal(drawer, drawCenter, baseScreenR, unit, fogFactor, isEnemy, projectedHealth);
     }
 
     private static void DrawStatBarsInternal(PrimitiveDrawer drawer, Vector2 drawCenter,
-                                              float baseScreenR, Unit unit, float fogFactor, bool isEnemy)
+                                              float baseScreenR, Unit unit, float fogFactor, bool isEnemy,
+                                              int? projectedHealth = null)
     {
         const float rowHeight = 8f;
         const float statGap = 3f;
@@ -232,7 +233,7 @@ public abstract class UnitRenderer
         if (isEnemy)
         {
             Vector2 healthAnchor = new Vector2(drawCenter.X, rowStartY);
-            DrawHealthBar(drawer, healthAnchor, unit, fogFactor);
+            DrawHealthBar(drawer, healthAnchor, unit, fogFactor, projectedHealth);
         }
         else
         {
@@ -241,7 +242,7 @@ public abstract class UnitRenderer
             Vector2 healthAnchor = new Vector2(drawCenter.X, rowStartY + 2 * rowHeight);
             DrawAmmoPips(drawer, ammoAnchor, unit, fogFactor);
             DrawMpBar(drawer, mpAnchor, unit, fogFactor);
-            DrawHealthBar(drawer, healthAnchor, unit, fogFactor);
+            DrawHealthBar(drawer, healthAnchor, unit, fogFactor, projectedHealth);
         }
     }
 
@@ -353,7 +354,7 @@ public abstract class UnitRenderer
     }
 
     private static void DrawHealthBar(PrimitiveDrawer drawer, Vector2 anchor,
-                                      Unit unit, float fogFactor)
+                                      Unit unit, float fogFactor, int? projectedHealth = null)
     {
         int max = unit.MaxHealth;
         if (max <= 0) return;
@@ -372,9 +373,22 @@ public abstract class UnitRenderer
         for (int i = 0; i < max; i++)
         {
             float sx = startX + i * (segW + segGap);
-            Color segColor = i < unit.Health
-                ? MapRenderer.ApplyFog(new Color(40, 180, 40), fogFactor)
-                : MapRenderer.ApplyFog(new Color(120, 30, 30), fogFactor);
+            Color segColor;
+            if (i < (projectedHealth ?? unit.Health))
+            {
+                // Healthy segment
+                segColor = MapRenderer.ApplyFog(new Color(40, 180, 40), fogFactor);
+            }
+            else if (projectedHealth.HasValue && i < unit.Health)
+            {
+                // Damage prediction segment (will be lost)
+                segColor = MapRenderer.ApplyFog(new Color(220, 60, 20), fogFactor);
+            }
+            else
+            {
+                // Already missing
+                segColor = MapRenderer.ApplyFog(new Color(120, 30, 30), fogFactor);
+            }
             drawer.DrawFilledRect(sx, top + pad, segW, segH, segColor);
         }
     }
